@@ -1,7 +1,7 @@
 use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ActivationKind {
     Input,
     Tanh,
