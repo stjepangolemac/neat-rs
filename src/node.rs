@@ -1,6 +1,7 @@
 use crate::activation::ActivationKind;
+use crate::genome::genes::NodeGene;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub enum NodeKind {
     Input,
     Hidden,
@@ -16,34 +17,13 @@ pub struct Node {
     pub value: Option<f64>,
 }
 
-impl Node {
-    pub fn new(kind: NodeKind) -> Self {
-        let activation: ActivationKind = match kind {
-            NodeKind::Input => ActivationKind::Input,
-            _ => rand::random(),
-        };
-        let bias: f64 = match kind {
-            NodeKind::Input => 0.,
-            _ => rand::random::<f64>() - 0.5,
-        };
-
+impl From<&NodeGene> for Node {
+    fn from(g: &NodeGene) -> Self {
         Node {
-            kind,
-            activation,
-            bias,
+            kind: g.kind.clone(),
+            activation: g.activation.clone(),
+            bias: g.bias,
             value: None,
         }
-    }
-
-    pub fn new_input() -> Self {
-        Node::new(NodeKind::Input)
-    }
-
-    pub fn new_output() -> Self {
-        Node::new(NodeKind::Output)
-    }
-
-    pub fn new_hidden() -> Self {
-        Node::new(NodeKind::Hidden)
     }
 }

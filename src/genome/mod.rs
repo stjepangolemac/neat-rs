@@ -1,15 +1,19 @@
 use rand::random;
 use std::collections::{HashMap, HashSet, VecDeque};
+use uuid::Uuid;
 
 use crate::activation::ActivationKind;
 use crate::node::NodeKind;
 use genes::{ConnectionGene, NodeGene};
+use mutation::MutationKind;
 
-mod genes;
-mod mutation;
+pub mod crossover;
+pub mod genes;
+pub mod mutation;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Genome {
+    id: Uuid,
     inputs: usize,
     outputs: usize,
     connection_genes: Vec<ConnectionGene>,
@@ -32,6 +36,7 @@ impl Genome {
             .collect();
 
         Genome {
+            id: Uuid::new_v4(),
             inputs,
             outputs,
             connection_genes,
@@ -41,11 +46,32 @@ impl Genome {
 
     fn empty(inputs: usize, outputs: usize) -> Self {
         Genome {
+            id: Uuid::new_v4(),
             inputs,
             outputs,
             connection_genes: vec![],
             node_genes: vec![],
         }
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn input_count(&self) -> usize {
+        self.inputs
+    }
+
+    pub fn output_count(&self) -> usize {
+        self.outputs
+    }
+
+    pub fn nodes(&self) -> &[NodeGene] {
+        &self.node_genes
+    }
+
+    pub fn connections(&self) -> &[ConnectionGene] {
+        &self.connection_genes
     }
 
     pub fn crossover(a: (&Self, f64), b: (&Self, f64)) -> Self {
@@ -349,7 +375,8 @@ impl Genome {
     }
 
     pub fn mutate(&mut self) {
-        mutation::mutate(self);
+        let kind: MutationKind = random();
+        mutation::mutate(kind, self);
     }
 }
 

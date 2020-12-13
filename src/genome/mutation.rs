@@ -4,8 +4,8 @@ use rand::Rng;
 
 use super::{ActivationKind, Genome, NodeKind};
 
-pub fn mutate(g: &mut Genome) {
-    match random::<MutationKind>() {
+pub fn mutate(kind: MutationKind, g: &mut Genome) {
+    match kind {
         MutationKind::AddConnection => add_connection(g),
         MutationKind::RemoveConnection => remove_connection(g),
         MutationKind::AddNode => add_node(g),
@@ -383,7 +383,8 @@ mod tests {
         let mut g = Genome::new(1, 1);
 
         for _ in 0..100 {
-            mutate(&mut g);
+            let kind: MutationKind = random();
+            mutate(kind, &mut g);
         }
     }
 }

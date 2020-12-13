@@ -1,3 +1,5 @@
+use crate::genome::genes::ConnectionGene;
+
 #[derive(Debug)]
 pub struct Connection {
     pub from: usize,
@@ -5,12 +7,12 @@ pub struct Connection {
     pub weight: f64,
 }
 
-impl Connection {
-    pub fn new(from: usize, to: usize) -> Self {
+impl From<&ConnectionGene> for Connection {
+    fn from(g: &ConnectionGene) -> Self {
         Connection {
-            from,
-            to,
-            weight: rand::random::<f64>() - 0.5,
+            from: g.from,
+            to: g.to,
+            weight: g.weight,
         }
     }
 }

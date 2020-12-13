@@ -1,5 +1,6 @@
 use crate::activation::*;
 use crate::connection::*;
+use crate::genome::Genome;
 use crate::node::*;
 
 #[derive(Debug)]
@@ -11,34 +12,6 @@ pub struct Network {
 }
 
 impl Network {
-    pub fn new(input_count: usize, output_count: usize) -> Self {
-        let mut nodes: Vec<Node> = vec![];
-        (0..input_count).for_each(|_| nodes.push(Node::new_input()));
-        (0..output_count).for_each(|_| nodes.push(Node::new_output()));
-
-        let mut connections: Vec<Connection> = vec![];
-        nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, n)| matches!(n.kind, NodeKind::Input))
-            .for_each(|(input_i, _)| {
-                nodes
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, n)| matches!(n.kind, NodeKind::Output))
-                    .for_each(|(output_i, _)| {
-                        connections.push(Connection::new(input_i, output_i));
-                    });
-            });
-
-        Network {
-            input_count,
-            output_count,
-            nodes,
-            connections,
-        }
-    }
-
     fn is_node_ready(&self, index: usize) -> bool {
         let node = self.nodes.get(index).unwrap();
 
@@ -53,7 +26,7 @@ impl Network {
         requirements_fullfilled && has_no_value
     }
 
-    pub fn forward_pass(&mut self, inputs: Vec<f64>) {
+    pub fn forward_pass(&mut self, inputs: Vec<f64>) -> Vec<f64> {
         let mut inputs_updated = false;
         let mut nodes_changed = -1;
 
@@ -113,27 +86,30 @@ impl Network {
                 nodes_changed += 1;
             });
         }
+
+        self.nodes
+            .iter()
+            .filter(|n| matches!(n.kind, NodeKind::Output))
+            .map(|n| n.value.unwrap())
+            .collect()
     }
 
     fn clear_values(&mut self) {
         self.nodes.iter_mut().for_each(|n| n.value = None);
     }
+}
 
-    /// Used for the add node mutation
-    pub fn insert_node(&mut self, connection: usize) {
-        // 1. Create a new hidden node
-        // 2. Connect from connection.from to it
-        // 3. Connect from it to the connection.to
-        // 4. Remove the original connection
+impl From<&Genome> for Network {
+    fn from(g: &Genome) -> Self {
+        let nodes: Vec<Node> = g.nodes().iter().map(Node::from).collect();
+        let connections: Vec<Connection> = g.connections().iter().map(Connection::from).collect();
 
-        // PROBLEM TODO When a new node is added all subsequent nodes change their index
-        // if you're not adding at the end of the vector
-
-        // let next_index = self.nodes.len();
-        // self.nodes.push(Node::new_hidden());
-
-        // let conn = self.connections.get(connection).unwrap();
-        // self.connections.push(Connection::new(conn.from, next_index
+        Network {
+            input_count: g.input_count(),
+            output_count: g.output_count(),
+            nodes,
+            connections,
+        }
     }
 }
 
@@ -143,15 +119,27 @@ mod tests {
 
     #[test]
     fn init_network() {
-        Network::new(3, 3);
+        let mut g = Genome::new(1, 1);
+
+        for _ in 0..5 {
+            g.mutate();
+        }
+
+        Network::from(&g);
     }
 
     #[test]
     fn forward_pass() {
-        let input_count = 3;
-        let mut network = Network::new(input_count, 3);
+        let mut g = Genome::new(1, 1);
 
+        for _ in 0..5 {
+            g.mutate();
+        }
+
+        let input_count = 3;
         let inputs: Vec<f64> = (0..input_count).map(|_| rand::random::<f64>()).collect();
-        network.forward_pass(inputs);
+
+        let mut n = Network::from(&g);
+        n.forward_pass(inputs);
     }
 }
