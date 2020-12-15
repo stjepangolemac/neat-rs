@@ -1,12 +1,14 @@
 use crate::genome::mutation::MutationKind;
 use crate::genome::Genome;
 use crate::network::Network;
+use rand::random;
 use std::collections::HashMap;
 use uuid::Uuid;
 
 pub struct NEAT {
     inputs: usize,
     outputs: usize,
+    population_size: usize,
     fitness_fn: fn(&mut Network) -> f64,
     mutation_kinds: Vec<MutationKind>,
     genomes: Vec<Genome>,
@@ -20,6 +22,7 @@ impl NEAT {
         NEAT {
             inputs,
             outputs,
+            population_size: 10,
             fitness_fn,
             mutation_kinds: vec![
                 AddConnection,
@@ -39,13 +42,84 @@ impl NEAT {
         self.mutation_kinds = kinds;
     }
 
-    pub fn start(&mut self) {
-        let genomes: Vec<Genome> = (0..2)
+    pub fn set_population_size(&mut self, size: usize) {
+        self.population_size = size;
+    }
+
+    pub fn start(&mut self) -> (Genome, f64) {
+        self.genomes = (0..self.population_size)
             .map(|_| Genome::new(self.inputs, self.outputs))
             .collect();
-        self.genomes = genomes;
 
         self.test_fitness();
+
+        for i in 0..99 {
+            println!("Iteration: {}", i);
+
+            let mut new_genomes = self.genomes.clone();
+
+            // new_genomes.sort_by(|a, b| {
+            //     let fitness_a = self.fitnesses.get(&a.id()).unwrap();
+            //     let fitness_b = self.fitnesses.get(&b.id()).unwrap();
+
+            //     if (fitness_a - fitness_b).abs() < f64::EPSILON {
+            //         std::cmp::Ordering::Equal
+            //     } else if fitness_a > fitness_b {
+            //         std::cmp::Ordering::Greater
+            //     } else {
+            //         std::cmp::Ordering::Less
+            //     }
+            // });
+
+            // new_genomes = new_genomes.into_iter().take(10).collect();
+            // let mut offspring = vec![];
+
+            // while new_genomes.len() + offspring.len() < self.population_size {
+            //     let index_a = random::<usize>() % new_genomes.len();
+            //     let index_b = random::<usize>() % new_genomes.len();
+
+            //     if index_a != index_b {
+            //         let genome_a = new_genomes.get(index_a).unwrap();
+            //         let genome_b = new_genomes.get(index_b).unwrap();
+
+            //         let mut g = Genome::crossover(
+            //             (genome_a, *self.fitnesses.get(&genome_a.id()).unwrap()),
+            //             (genome_b, *self.fitnesses.get(&genome_b.id()).unwrap()),
+            //         );
+
+            //         if random::<f64>() < 0.5 {
+            //             g.mutate();
+            //         }
+
+            //         offspring.push(g);
+            //     }
+            // }
+
+            new_genomes.iter_mut().for_each(|g| g.mutate());
+            // new_genomes.append(&mut offspring);
+
+            self.genomes = new_genomes;
+            self.test_fitness();
+        }
+
+        let (id, fitness) = self
+            .fitnesses
+            .iter()
+            .max_by(|(_, f1), (_, f2)| {
+                if (**f1 - **f2).abs() < f64::EPSILON {
+                    std::cmp::Ordering::Equal
+                } else if f1 > f2 {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Less
+                }
+            })
+            .unwrap();
+
+        (
+            self.genomes.iter().find(|g| g.id() == *id).unwrap().clone(),
+            *fitness,
+        )
     }
 
     fn test_fitness(&mut self) {
@@ -84,11 +158,9 @@ mod tests {
             1. / error
         });
 
-        system.start();
+        system.set_population_size(15);
+        let (genome, fitness) = system.start();
 
-        for (id, f) in system.fitnesses.iter() {
-            let genome = system.genomes.iter().find(|g| g.id() == *id).unwrap();
-            dbg!(genome, f);
-        }
+        dbg!(genome, fitness);
     }
 }

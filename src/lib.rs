@@ -1,6 +1,6 @@
 mod activation;
 mod connection;
 mod genome;
-mod neat;
+// mod neat;
 mod network;
 mod node;

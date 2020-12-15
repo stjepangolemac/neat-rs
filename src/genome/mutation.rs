@@ -17,7 +17,7 @@ pub fn mutate(kind: MutationKind, g: &mut Genome) {
     };
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum MutationKind {
     AddConnection,
     RemoveConnection,
@@ -34,7 +34,7 @@ impl Distribution<MutationKind> for Standard {
             0 => MutationKind::AddConnection,
             1 => MutationKind::RemoveConnection,
             2 => MutationKind::AddNode,
-            // 3 => MutationKind::RemoveNode, // This one is problematic
+            3 => MutationKind::RemoveNode,
             4 => MutationKind::ModifyWeight,
             5 => MutationKind::ModifyBias,
             _ => MutationKind::ModifyActivation,
@@ -64,11 +64,15 @@ fn add_connection(g: &mut Genome) {
 
             inner
         })
-        .filter(|(i, j)| g.can_connect(*i, *j))
         .collect();
 
     possible_connections.sort_unstable();
     possible_connections.dedup();
+
+    possible_connections = possible_connections
+        .into_iter()
+        .filter(|(i, j)| g.can_connect(*i, *j))
+        .collect();
 
     if possible_connections.is_empty() {
         return;
@@ -380,11 +384,53 @@ mod tests {
 
     #[test]
     fn mutate_genome() {
+        use std::collections::HashMap;
+        use std::convert::TryFrom;
+        use std::time;
+
+        let mut times: HashMap<MutationKind, Vec<time::Duration>> = HashMap::new();
         let mut g = Genome::new(1, 1);
 
-        for _ in 0..100 {
+        let limit = 1000;
+        for i in 1..=limit {
             let kind: MutationKind = random();
-            mutate(kind, &mut g);
+
+            let before = std::time::Instant::now();
+            mutate(kind.clone(), &mut g);
+            let after = std::time::Instant::now();
+            let duration = after.duration_since(before);
+
+            if times.get(&kind).is_none() {
+                times.insert(kind.clone(), vec![]);
+            }
+
+            times.get_mut(&kind).unwrap().push(duration);
+
+            println!("mutation {}/{}", i, limit);
         }
+
+        let mut kind_average_times: Vec<(MutationKind, time::Duration)> = times
+            .iter()
+            .map(|(k, t)| {
+                let sum: u128 = t.iter().map(|d| d.as_micros()).sum();
+                let avg: u128 = sum.div_euclid(u128::try_from(t.len()).unwrap());
+
+                let duration = time::Duration::from_micros(u64::try_from(avg).unwrap());
+
+                (k.clone(), duration)
+            })
+            .collect();
+
+        kind_average_times.sort_by(|(_, duration1), (_, duration2)| duration1.cmp(duration2));
+
+        kind_average_times.iter().for_each(|(k, duration)| {
+            println!("{:?} on avg took {:?}", k, duration);
+        });
+
+        println!(
+            "Genome had {} nodes and {} connections",
+            g.nodes().len(),
+            g.connections().len()
+        );
     }
 }

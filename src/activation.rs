@@ -6,13 +6,15 @@ pub enum ActivationKind {
     Input,
     Tanh,
     Relu,
+    Step,
 }
 
 impl Distribution<ActivationKind> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> ActivationKind {
-        match rng.gen_range(0, 2) {
+        match rng.gen_range(0, 3) {
             0 => ActivationKind::Tanh,
-            _ => ActivationKind::Relu,
+            1 => ActivationKind::Relu,
+            _ => ActivationKind::Step,
         }
     }
 }
@@ -25,6 +27,13 @@ pub fn activate(x: f64, kind: &ActivationKind) -> f64 {
                 x
             } else {
                 0.
+            }
+        }
+        ActivationKind::Step => {
+            if x < 0. {
+                0.
+            } else {
+                1.
             }
         }
         _ => x,

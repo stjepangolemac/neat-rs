@@ -87,6 +87,7 @@ impl Network {
             });
         }
 
+        dbg!(&self);
         self.nodes
             .iter()
             .filter(|n| matches!(n.kind, NodeKind::Output))
