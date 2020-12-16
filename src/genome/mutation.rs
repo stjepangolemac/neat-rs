@@ -391,7 +391,7 @@ mod tests {
         let mut times: HashMap<MutationKind, Vec<time::Duration>> = HashMap::new();
         let mut g = Genome::new(1, 1);
 
-        let limit = 1000;
+        let limit = 100;
         for i in 1..=limit {
             let kind: MutationKind = random();
 

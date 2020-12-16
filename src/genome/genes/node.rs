@@ -1,35 +1,7 @@
 use crate::activation::ActivationKind;
 use crate::node::NodeKind;
 use rand::random;
-
-#[derive(Debug, Clone)]
-pub struct ConnectionGene {
-    pub from: usize,
-    pub to: usize,
-    pub weight: f64,
-    pub disabled: bool,
-}
-
-impl ConnectionGene {
-    pub fn new(from: usize, to: usize) -> Self {
-        ConnectionGene {
-            from,
-            to,
-            weight: random::<f64>() * 2. - 1.,
-            disabled: false,
-        }
-    }
-
-    pub fn innovation_number(&self) -> usize {
-        let a = self.from;
-        let b = self.to;
-
-        let first_part = (a + b) * (a + b + 1);
-        let second_part = b;
-
-        first_part.checked_div(2).unwrap() + second_part
-    }
-}
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone)]
 pub struct NodeGene {
@@ -54,5 +26,23 @@ impl NodeGene {
             activation,
             bias,
         }
+    }
+}
+
+impl PartialEq for NodeGene {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.activation == other.activation
+            && (self.bias - other.bias).abs() < f64::EPSILON
+    }
+}
+
+impl Eq for NodeGene {}
+
+impl Hash for NodeGene {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.kind.hash(state);
+        self.activation.hash(state);
+        self.bias.to_bits().hash(state);
     }
 }

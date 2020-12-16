@@ -191,6 +191,8 @@ mod tests {
             1. / (1. + error)
         });
 
+        system.set_generations(30);
+
         let (mut network, fitness) = system.start();
 
         let inputs: Vec<Vec<f64>> = vec![vec![0., 0.], vec![0., 1.], vec![1., 0.], vec![1., 1.]];
