@@ -1,6 +1,5 @@
 use rand::random;
 use std::collections::{HashMap, HashSet, VecDeque};
-use uuid::Uuid;
 
 use crate::activation::ActivationKind;
 use crate::node::NodeKind;
@@ -11,9 +10,8 @@ pub mod crossover;
 pub mod genes;
 pub mod mutation;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Genome {
-    id: Uuid,
     inputs: usize,
     outputs: usize,
     connection_genes: Vec<ConnectionGene>,
@@ -36,7 +34,6 @@ impl Genome {
             .collect();
 
         Genome {
-            id: Uuid::new_v4(),
             inputs,
             outputs,
             connection_genes,
@@ -46,16 +43,11 @@ impl Genome {
 
     fn empty(inputs: usize, outputs: usize) -> Self {
         Genome {
-            id: Uuid::new_v4(),
             inputs,
             outputs,
             connection_genes: vec![],
             node_genes: vec![],
         }
-    }
-
-    pub fn id(&self) -> Uuid {
-        self.id
     }
 
     pub fn input_count(&self) -> usize {
@@ -72,10 +64,6 @@ impl Genome {
 
     pub fn connections(&self) -> &[ConnectionGene] {
         &self.connection_genes
-    }
-
-    pub fn change_id(&mut self) {
-        self.id = Uuid::new_v4();
     }
 
     pub fn crossover(a: (&Self, f64), b: (&Self, f64)) -> Self {

@@ -1,9 +1,8 @@
 use crate::genome::mutation::MutationKind;
-use crate::genome::{mutation, Genome};
+use crate::genome::Genome;
 use crate::network::Network;
 use rand::random;
 use std::collections::HashMap;
-use uuid::Uuid;
 
 pub struct NEAT {
     inputs: usize,
@@ -16,7 +15,7 @@ pub struct NEAT {
     fitness_fn: fn(&mut Network) -> f64,
     mutation_kinds: Vec<MutationKind>,
     genomes: Vec<Genome>,
-    fitnesses: HashMap<Uuid, f64>,
+    fitnesses: HashMap<Genome, f64>,
 }
 
 impl NEAT {
@@ -92,8 +91,8 @@ impl NEAT {
             let mut elites: Vec<Genome> = self.genomes.iter().take(elites_count).cloned().collect();
 
             elites.sort_by(|a, b| {
-                let fitness_a = self.fitnesses.get(&a.id()).unwrap();
-                let fitness_b = self.fitnesses.get(&b.id()).unwrap();
+                let fitness_a = self.fitnesses.get(&a).unwrap();
+                let fitness_b = self.fitnesses.get(&b).unwrap();
 
                 if (fitness_a - fitness_b).abs() < f64::EPSILON {
                     std::cmp::Ordering::Equal
@@ -111,7 +110,6 @@ impl NEAT {
                 let parent = elites.get(parent_index).unwrap();
 
                 let mut child = parent.clone();
-                child.change_id();
                 child.mutate();
 
                 offspring.push(child);
@@ -125,24 +123,24 @@ impl NEAT {
         }
 
         let best_genome = self.genomes.first().unwrap();
-        let best_fitness = self.fitnesses.get(&best_genome.id()).unwrap();
+        let best_fitness = self.fitnesses.get(&best_genome).unwrap();
 
         (Network::from(best_genome), *best_fitness)
     }
 
     fn test_fitness(&mut self) {
-        let ids_and_networks: Vec<(Uuid, Network)> = self
+        let ids_and_networks: Vec<(Genome, Network)> = self
             .genomes
             .iter()
-            .map(|g| (g.id(), Network::from(g)))
+            .map(|g| (g.clone(), Network::from(g)))
             .collect();
 
-        ids_and_networks.into_iter().for_each(|(id, mut n)| {
+        ids_and_networks.into_iter().for_each(|(g, mut n)| {
             let mut fitness = (self.fitness_fn)(&mut n);
             fitness -= self.node_cost * n.nodes.len() as f64;
             fitness -= self.connection_cost * n.connections.len() as f64;
 
-            self.fitnesses.insert(id, fitness);
+            self.fitnesses.insert(g, fitness);
         });
 
         self.sort_by_fitness();
@@ -152,8 +150,8 @@ impl NEAT {
         let mut copy = self.genomes.clone();
 
         copy.sort_by(|a, b| {
-            let fitness_a = self.fitnesses.get(&a.id()).unwrap();
-            let fitness_b = self.fitnesses.get(&b.id()).unwrap();
+            let fitness_a = self.fitnesses.get(&a).unwrap();
+            let fitness_b = self.fitnesses.get(&b).unwrap();
 
             if (fitness_a - fitness_b).abs() < f64::EPSILON {
                 std::cmp::Ordering::Equal
