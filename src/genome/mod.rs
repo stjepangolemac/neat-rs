@@ -74,6 +74,10 @@ impl Genome {
         &self.connection_genes
     }
 
+    pub fn change_id(&mut self) {
+        self.id = Uuid::new_v4();
+    }
+
     pub fn crossover(a: (&Self, f64), b: (&Self, f64)) -> Self {
         let inputs_count_not_equal = a.0.inputs != b.0.inputs;
         let outputs_count_not_equal = a.0.outputs != b.0.outputs;

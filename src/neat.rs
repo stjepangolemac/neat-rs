@@ -1,5 +1,5 @@
 use crate::genome::mutation::MutationKind;
-use crate::genome::Genome;
+use crate::genome::{mutation, Genome};
 use crate::network::Network;
 use rand::random;
 use std::collections::HashMap;
@@ -8,7 +8,11 @@ use uuid::Uuid;
 pub struct NEAT {
     inputs: usize,
     outputs: usize,
+    generations: usize,
     population_size: usize,
+    elitism: f64,
+    node_cost: f64,
+    connection_cost: f64,
     fitness_fn: fn(&mut Network) -> f64,
     mutation_kinds: Vec<MutationKind>,
     genomes: Vec<Genome>,
@@ -22,7 +26,11 @@ impl NEAT {
         NEAT {
             inputs,
             outputs,
-            population_size: 10,
+            generations: 100,
+            population_size: 300,
+            elitism: 0.3,
+            node_cost: 0.000000001,
+            connection_cost: 0.000000001,
             fitness_fn,
             mutation_kinds: vec![
                 AddConnection,
@@ -42,84 +50,84 @@ impl NEAT {
         self.mutation_kinds = kinds;
     }
 
+    pub fn set_generations(&mut self, count: usize) {
+        if count == 0 {
+            panic!("Iteration count needs to be greater than 0");
+        }
+
+        self.generations = count;
+    }
+
     pub fn set_population_size(&mut self, size: usize) {
         self.population_size = size;
     }
 
-    pub fn start(&mut self) -> (Genome, f64) {
+    pub fn set_elitism(&mut self, ratio: f64) {
+        if ratio <= 0. {
+            panic!("Elitism needs to be greater than 0");
+        }
+
+        self.elitism = ratio;
+    }
+
+    pub fn set_node_cost(&mut self, cost: f64) {
+        self.node_cost = cost;
+    }
+
+    pub fn set_connection_cost(&mut self, cost: f64) {
+        self.connection_cost = cost;
+    }
+
+    pub fn start(&mut self) -> (Network, f64) {
         self.genomes = (0..self.population_size)
             .map(|_| Genome::new(self.inputs, self.outputs))
             .collect();
-
         self.test_fitness();
 
-        for i in 0..99 {
-            println!("Iteration: {}", i);
+        for i in 0..self.generations {
+            println!("Generation {}", i);
 
-            let mut new_genomes = self.genomes.clone();
+            let elites_count =
+                (self.genomes.len() * (self.elitism * 100.).round() as usize).div_euclid(100);
+            let mut elites: Vec<Genome> = self.genomes.iter().take(elites_count).cloned().collect();
 
-            // new_genomes.sort_by(|a, b| {
-            //     let fitness_a = self.fitnesses.get(&a.id()).unwrap();
-            //     let fitness_b = self.fitnesses.get(&b.id()).unwrap();
+            elites.sort_by(|a, b| {
+                let fitness_a = self.fitnesses.get(&a.id()).unwrap();
+                let fitness_b = self.fitnesses.get(&b.id()).unwrap();
 
-            //     if (fitness_a - fitness_b).abs() < f64::EPSILON {
-            //         std::cmp::Ordering::Equal
-            //     } else if fitness_a > fitness_b {
-            //         std::cmp::Ordering::Greater
-            //     } else {
-            //         std::cmp::Ordering::Less
-            //     }
-            // });
+                if (fitness_a - fitness_b).abs() < f64::EPSILON {
+                    std::cmp::Ordering::Equal
+                } else if fitness_a > fitness_b {
+                    std::cmp::Ordering::Less
+                } else {
+                    std::cmp::Ordering::Greater
+                }
+            });
 
-            // new_genomes = new_genomes.into_iter().take(10).collect();
-            // let mut offspring = vec![];
+            let mut offspring = vec![];
 
-            // while new_genomes.len() + offspring.len() < self.population_size {
-            //     let index_a = random::<usize>() % new_genomes.len();
-            //     let index_b = random::<usize>() % new_genomes.len();
+            while elites.len() + offspring.len() < self.population_size {
+                let parent_index = random::<usize>() % elites.len();
+                let parent = elites.get(parent_index).unwrap();
 
-            //     if index_a != index_b {
-            //         let genome_a = new_genomes.get(index_a).unwrap();
-            //         let genome_b = new_genomes.get(index_b).unwrap();
+                let mut child = parent.clone();
+                child.change_id();
+                child.mutate();
 
-            //         let mut g = Genome::crossover(
-            //             (genome_a, *self.fitnesses.get(&genome_a.id()).unwrap()),
-            //             (genome_b, *self.fitnesses.get(&genome_b.id()).unwrap()),
-            //         );
+                offspring.push(child);
+            }
 
-            //         if random::<f64>() < 0.5 {
-            //             g.mutate();
-            //         }
+            elites.iter_mut().for_each(|g| g.mutate());
+            elites.append(&mut offspring);
 
-            //         offspring.push(g);
-            //     }
-            // }
-
-            new_genomes.iter_mut().for_each(|g| g.mutate());
-            // new_genomes.append(&mut offspring);
-
-            self.genomes = new_genomes;
+            self.genomes = elites;
             self.test_fitness();
         }
 
-        let (id, fitness) = self
-            .fitnesses
-            .iter()
-            .max_by(|(_, f1), (_, f2)| {
-                if (**f1 - **f2).abs() < f64::EPSILON {
-                    std::cmp::Ordering::Equal
-                } else if f1 > f2 {
-                    std::cmp::Ordering::Greater
-                } else {
-                    std::cmp::Ordering::Less
-                }
-            })
-            .unwrap();
+        let best_genome = self.genomes.first().unwrap();
+        let best_fitness = self.fitnesses.get(&best_genome.id()).unwrap();
 
-        (
-            self.genomes.iter().find(|g| g.id() == *id).unwrap().clone(),
-            *fitness,
-        )
+        (Network::from(best_genome), *best_fitness)
     }
 
     fn test_fitness(&mut self) {
@@ -130,8 +138,33 @@ impl NEAT {
             .collect();
 
         ids_and_networks.into_iter().for_each(|(id, mut n)| {
-            self.fitnesses.insert(id, (self.fitness_fn)(&mut n));
+            let mut fitness = (self.fitness_fn)(&mut n);
+            fitness -= self.node_cost * n.nodes.len() as f64;
+            fitness -= self.connection_cost * n.connections.len() as f64;
+
+            self.fitnesses.insert(id, fitness);
         });
+
+        self.sort_by_fitness();
+    }
+
+    fn sort_by_fitness(&mut self) {
+        let mut copy = self.genomes.clone();
+
+        copy.sort_by(|a, b| {
+            let fitness_a = self.fitnesses.get(&a.id()).unwrap();
+            let fitness_b = self.fitnesses.get(&b.id()).unwrap();
+
+            if (fitness_a - fitness_b).abs() < f64::EPSILON {
+                std::cmp::Ordering::Equal
+            } else if fitness_a > fitness_b {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Greater
+            }
+        });
+
+        self.genomes = copy;
     }
 }
 
@@ -155,12 +188,17 @@ mod tests {
                 error += (o - *result).powi(2);
             }
 
-            1. / error
+            1. / (1. + error)
         });
 
-        system.set_population_size(15);
-        let (genome, fitness) = system.start();
+        let (mut network, fitness) = system.start();
 
-        dbg!(genome, fitness);
+        let inputs: Vec<Vec<f64>> = vec![vec![0., 0.], vec![0., 1.], vec![1., 0.], vec![1., 1.]];
+        for i in inputs {
+            let o = network.forward_pass(i.clone());
+            dbg!(i, o);
+        }
+
+        dbg!(network, fitness);
     }
 }

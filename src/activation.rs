@@ -30,10 +30,10 @@ pub fn activate(x: f64, kind: &ActivationKind) -> f64 {
             }
         }
         ActivationKind::Step => {
-            if x < 0. {
-                0.
-            } else {
+            if x > 0. {
                 1.
+            } else {
+                0.
             }
         }
         _ => x,

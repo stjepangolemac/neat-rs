@@ -5,10 +5,10 @@ use crate::node::*;
 
 #[derive(Debug)]
 pub struct Network {
-    input_count: usize,
-    output_count: usize,
-    nodes: Vec<Node>,
-    connections: Vec<Connection>,
+    pub input_count: usize,
+    pub output_count: usize,
+    pub nodes: Vec<Node>,
+    pub connections: Vec<Connection>,
 }
 
 impl Network {
@@ -87,12 +87,17 @@ impl Network {
             });
         }
 
-        dbg!(&self);
-        self.nodes
+        let outputs = self
+            .nodes
             .iter()
             .filter(|n| matches!(n.kind, NodeKind::Output))
             .map(|n| n.value.unwrap())
-            .collect()
+            .collect();
+
+        // Very important, I forgot this initially :facepalm:
+        self.clear_values();
+
+        outputs
     }
 
     fn clear_values(&mut self) {
@@ -131,16 +136,15 @@ mod tests {
 
     #[test]
     fn forward_pass() {
-        let mut g = Genome::new(1, 1);
-
-        for _ in 0..5 {
-            g.mutate();
-        }
-
-        let input_count = 3;
-        let inputs: Vec<f64> = (0..input_count).map(|_| rand::random::<f64>()).collect();
-
+        let g = Genome::new(2, 1);
         let mut n = Network::from(&g);
-        n.forward_pass(inputs);
+
+        let inputs: Vec<Vec<f64>> = vec![vec![0., 0.], vec![0., 1.], vec![1., 0.], vec![1., 1.]];
+
+        for i in inputs {
+            let o = n.forward_pass(i.clone());
+
+            dbg!(i, o);
+        }
     }
 }

@@ -43,7 +43,7 @@ impl Distribution<MutationKind> for Standard {
 }
 
 /// Adds a new random connection
-fn add_connection(g: &mut Genome) {
+pub fn add_connection(g: &mut Genome) {
     let existing_connections: Vec<(usize, usize)> =
         g.connection_genes.iter().map(|c| (c.from, c.to)).collect();
 
@@ -126,7 +126,7 @@ fn remove_connection(g: &mut Genome) {
 }
 
 /// Adds a random hidden node to the genome and its connections
-fn add_node(g: &mut Genome) {
+pub fn add_node(g: &mut Genome) {
     let new_node_index = g.add_node();
 
     let random_connection_index = random::<usize>() % g.connection_genes.len();
@@ -212,7 +212,7 @@ fn change_weight(g: &mut Genome) {
     let index = random::<usize>() % g.connection_genes.len();
     let picked_connection = g.connection_genes.get_mut(index).unwrap();
 
-    picked_connection.weight = random::<f64>() - 0.5;
+    picked_connection.weight = random::<f64>() * 2. - 1.;
 }
 
 /// Changes the bias of a random non input node
@@ -230,7 +230,7 @@ fn change_bias(g: &mut Genome) {
         .unwrap();
     let picked_node = g.node_genes.get_mut(*index).unwrap();
 
-    picked_node.bias = random::<f64>() - 0.5;
+    picked_node.bias = random::<f64>() * 2. - 1.;
 }
 
 /// Changes the activation function of a random non input node

@@ -15,7 +15,7 @@ impl ConnectionGene {
         ConnectionGene {
             from,
             to,
-            weight: random::<f64>() - 0.5,
+            weight: random::<f64>() * 2. - 1.,
             disabled: false,
         }
     }
@@ -42,11 +42,11 @@ impl NodeGene {
     pub fn new(kind: NodeKind) -> Self {
         let activation: ActivationKind = match kind {
             NodeKind::Input => ActivationKind::Input,
-            _ => rand::random(),
+            _ => random(),
         };
         let bias: f64 = match kind {
             NodeKind::Input => 0.,
-            _ => rand::random::<f64>() - 0.5,
+            _ => random::<f64>() * 2. - 1.,
         };
 
         NodeGene {
