@@ -29,8 +29,8 @@ impl NEAT {
             generations: 100,
             population_size: 300,
             elitism: 0.3,
-            node_cost: 0.000000001,
-            connection_cost: 0.000000001,
+            node_cost: 0.,
+            connection_cost: 0.,
             fitness_fn,
             mutation_kinds: vec![
                 AddConnection,
