@@ -108,7 +108,12 @@ impl Network {
 impl From<&Genome> for Network {
     fn from(g: &Genome) -> Self {
         let nodes: Vec<Node> = g.nodes().iter().map(Node::from).collect();
-        let connections: Vec<Connection> = g.connections().iter().map(Connection::from).collect();
+        let connections: Vec<Connection> = g
+            .connections()
+            .iter()
+            .filter(|c| !c.disabled)
+            .map(Connection::from)
+            .collect();
 
         Network {
             input_count: g.input_count(),

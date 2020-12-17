@@ -227,14 +227,20 @@ impl Genome {
         &self,
         additional_connections: Option<Vec<ConnectionGene>>,
     ) -> Option<Vec<usize>> {
-        let mut connections: Vec<ConnectionGene> = self.connection_genes.clone();
+        let mut connections: Vec<ConnectionGene> = self
+            .connection_genes
+            .iter()
+            .filter(|c| !c.disabled)
+            .cloned()
+            .collect();
+
         if let Some(mut conns) = additional_connections {
             connections.append(&mut conns);
         }
 
         let mut visited: Vec<usize> = vec![];
 
-        // Input nodes are added to the set
+        // Input nodes are automatically visited as they get their values from inputs
         self.node_genes
             .iter()
             .enumerate()
@@ -288,6 +294,7 @@ impl Genome {
     fn is_projecting_directly(&self, source: usize, target: usize) -> bool {
         self.connection_genes
             .iter()
+            .filter(|c| !c.disabled)
             .any(|c| c.from == source && c.to == target)
     }
 
@@ -310,7 +317,7 @@ impl Genome {
             } else {
                 self.connection_genes
                     .iter()
-                    .filter(|c| c.from == i && !visited_nodes.contains(&i))
+                    .filter(|c| c.from == i && !c.disabled && !visited_nodes.contains(&i))
                     .for_each(|c| nodes_to_visit.push_back(c.to));
             }
         }
@@ -346,7 +353,16 @@ impl Genome {
             return Err(());
         }
 
-        self.connection_genes.push(ConnectionGene::new(from, to));
+        let maybe_connection = self
+            .connection_genes
+            .iter_mut()
+            .find(|c| c.from == from && c.to == to);
+
+        if let Some(mut conn) = maybe_connection {
+            conn.disabled = false;
+        } else {
+            self.connection_genes.push(ConnectionGene::new(from, to));
+        }
 
         Ok(self.connection_genes.len() - 1)
     }
@@ -354,40 +370,31 @@ impl Genome {
     fn add_many_connections(&mut self, params: &[(usize, usize)]) -> Vec<Result<usize, ()>> {
         let results = params
             .iter()
-            .map(|(from, to)| {
-                if !self.can_connect(*from, *to) {
-                    return Err(());
-                }
-
-                self.connection_genes.push(ConnectionGene::new(*from, *to));
-
-                Ok(self
-                    .connection_genes
-                    .iter()
-                    .enumerate()
-                    .find(|(_, c)| c.from == *from && c.to == *to)
-                    .unwrap()
-                    .0)
-            })
+            .map(|(from, to)| self.add_connection(*from, *to))
             .collect();
 
         results
     }
 
-    fn remove_many_connections(&mut self, indexes: &[usize]) {
-        if indexes.is_empty() {
-            return;
-        }
+    fn disable_connection(&mut self, index: usize) {
+        self.connection_genes.get_mut(index).unwrap().disabled = true;
+    }
 
-        let mut indexes_copy: Vec<usize> = (*indexes).to_vec();
+    fn disable_many_connections(&mut self, indexes: &[usize]) {
+        // if indexes.is_empty() {
+        //     return;
+        // }
 
-        indexes_copy.sort_unstable();
-        // Not sure if needed
-        indexes_copy.dedup();
+        indexes.iter().for_each(|i| self.disable_connection(*i));
 
-        indexes_copy.iter().rev().for_each(|i| {
-            self.connection_genes.remove(*i);
-        });
+        // let mut indexes_copy: Vec<usize> = (*indexes).to_vec();
+
+        // indexes_copy.sort_unstable();
+        // indexes_copy.dedup();
+
+        // indexes_copy.iter().rev().for_each(|i| {
+        //     self.connection_genes.remove(*i);
+        // });
     }
 
     /// Add a new hidden node to the genome
@@ -398,22 +405,22 @@ impl Genome {
         index
     }
 
-    fn remove_node(&mut self, index: usize) {
-        if !matches!(self.node_genes.get(index).unwrap().kind, NodeKind::Hidden) {
-            panic!("Cannot remove a non hidden node");
-        }
+    // fn remove_node(&mut self, index: usize) {
+    //     if !matches!(self.node_genes.get(index).unwrap().kind, NodeKind::Hidden) {
+    //         panic!("Cannot remove a non hidden node");
+    //     }
 
-        self.node_genes.remove(index);
-        self.connection_genes.iter_mut().for_each(|c| {
-            if c.from > index {
-                c.from -= 1;
-            }
+    //     self.node_genes.remove(index);
+    //     self.connection_genes.iter_mut().for_each(|c| {
+    //         if c.from > index {
+    //             c.from -= 1;
+    //         }
 
-            if c.to > index {
-                c.to -= 1;
-            }
-        });
-    }
+    //         if c.to > index {
+    //             c.to -= 1;
+    //         }
+    //     });
+    // }
 
     pub fn mutate(&mut self) {
         let kind: MutationKind = random();
