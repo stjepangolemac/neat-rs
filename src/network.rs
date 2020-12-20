@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::activation::*;
 use crate::connection::*;
 use crate::genome::Genome;
@@ -9,6 +11,7 @@ pub struct Network {
     pub output_count: usize,
     pub nodes: Vec<Node>,
     pub connections: Vec<Connection>,
+    node_calculation_order: Vec<usize>,
 }
 
 impl Network {
@@ -27,77 +30,106 @@ impl Network {
     }
 
     pub fn forward_pass(&mut self, inputs: Vec<f64>) -> Vec<f64> {
-        let mut inputs_updated = false;
-        let mut nodes_changed = -1;
+        for i in &self.node_calculation_order {
+            let node = self.nodes.get(*i).unwrap();
 
-        while nodes_changed != 0 {
-            nodes_changed = 0;
+            if matches!(node.kind, NodeKind::Input) {
+                self.nodes.get_mut(*i).unwrap().value = Some(*inputs.get(*i).unwrap());
+            } else {
+                let pre_activation =
+                    self.connections
+                        .iter()
+                        .filter(|c| c.to == *i)
+                        .fold(0., |sum, c| {
+                            let incoming_value = self.nodes.get(c.from).unwrap().value.unwrap();
+                            sum + incoming_value * c.weight
+                        });
 
-            // First pass, update inputs
-            if !inputs_updated {
-                self.nodes
-                    .iter_mut()
-                    .enumerate()
-                    .filter(|(_, n)| matches!(n.kind, NodeKind::Input))
-                    .for_each(|(i, n)| {
-                        let input_value = *inputs.get(i).expect(
-                            "Inputs need to be of the same length as the number of input nodes",
-                        );
-
-                        n.value = Some(input_value);
-                        nodes_changed += 1;
-                    });
-
-                inputs_updated = true;
+                self.nodes.get_mut(*i).unwrap().value =
+                    Some(activate(pre_activation, &node.activation));
             }
-
-            // Other passes, update non input nodes
-            let mut node_updates: Vec<(usize, f64)> = vec![];
-            self.nodes
-                .iter()
-                .enumerate()
-                .filter(|(i, n)| {
-                    let is_not_input = !matches!(n.kind, NodeKind::Input);
-                    let is_ready = self.is_node_ready(*i);
-
-                    is_not_input && is_ready
-                })
-                .for_each(|(i, n)| {
-                    let incoming_connections: Vec<&Connection> =
-                        self.connections.iter().filter(|c| c.to == i).collect();
-
-                    let mut value = 0.;
-
-                    for c in incoming_connections {
-                        let from_node = self.nodes.get(c.from).unwrap();
-                        value += from_node.value.unwrap() * c.weight;
-                    }
-
-                    value += n.bias;
-
-                    node_updates.push((i, value));
-                });
-
-            node_updates.iter().for_each(|(i, v)| {
-                let n = self.nodes.get_mut(*i).unwrap();
-
-                n.value = Some(activate(*v, &n.activation));
-
-                nodes_changed += 1;
-            });
         }
 
-        let outputs = self
-            .nodes
+        self.nodes
             .iter()
             .filter(|n| matches!(n.kind, NodeKind::Output))
             .map(|n| n.value.unwrap())
-            .collect();
+            .collect()
 
-        // Very important, I forgot this initially :facepalm:
-        self.clear_values();
+        // let mut inputs_updated = false;
+        // let mut nodes_changed = -1;
+        // let mut nodes_changed_sum = 0;
 
-        outputs
+        // while nodes_changed != 0 {
+        //     nodes_changed = 0;
+
+        //     // First pass, update inputs
+        //     if !inputs_updated {
+        //         self.nodes
+        //             .iter_mut()
+        //             .enumerate()
+        //             .filter(|(_, n)| matches!(n.kind, NodeKind::Input))
+        //             .for_each(|(i, n)| {
+        //                 let input_value = *inputs.get(i).expect(
+        //                     "Inputs need to be of the same length as the number of input nodes",
+        //                 );
+
+        //                 n.value = Some(input_value);
+        //                 nodes_changed += 1;
+        //             });
+
+        //         inputs_updated = true;
+        //     }
+
+        //     // Other passes, update non input nodes
+        //     let mut node_updates: Vec<(usize, f64)> = vec![];
+        //     self.nodes
+        //         .iter()
+        //         .enumerate()
+        //         .filter(|(i, n)| {
+        //             let is_not_input = !matches!(n.kind, NodeKind::Input);
+        //             let is_ready = self.is_node_ready(*i);
+
+        //             is_not_input && is_ready
+        //         })
+        //         .for_each(|(i, n)| {
+        //             let incoming_connections: Vec<&Connection> =
+        //                 self.connections.iter().filter(|c| c.to == i).collect();
+
+        //             let mut value = 0.;
+
+        //             for c in incoming_connections {
+        //                 let from_node = self.nodes.get(c.from).unwrap();
+        //                 value += from_node.value.unwrap() * c.weight;
+        //             }
+
+        //             value += n.bias;
+
+        //             node_updates.push((i, value));
+        //         });
+
+        //     node_updates.iter().for_each(|(i, v)| {
+        //         let n = self.nodes.get_mut(*i).unwrap();
+
+        //         n.value = Some(activate(*v, &n.activation));
+
+        //         nodes_changed += 1;
+        //     });
+
+        //     nodes_changed_sum += nodes_changed;
+        // }
+
+        // let outputs = self
+        //     .nodes
+        //     .iter()
+        //     .filter(|n| matches!(n.kind, NodeKind::Output))
+        //     .map(|n| n.value.unwrap())
+        //     .collect();
+
+        // // Very important, I forgot this initially :facepalm:
+        // self.clear_values();
+
+        // outputs
     }
 
     fn clear_values(&mut self) {
@@ -120,6 +152,7 @@ impl From<&Genome> for Network {
             output_count: g.output_count(),
             nodes,
             connections,
+            node_calculation_order: g.node_order().unwrap(),
         }
     }
 }

@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::activation::ActivationKind;
 use crate::node::NodeKind;
+pub use crossover::*;
 use genes::{ConnectionGene, NodeGene};
 use mutation::MutationKind;
 
@@ -381,20 +382,7 @@ impl Genome {
     }
 
     fn disable_many_connections(&mut self, indexes: &[usize]) {
-        // if indexes.is_empty() {
-        //     return;
-        // }
-
         indexes.iter().for_each(|i| self.disable_connection(*i));
-
-        // let mut indexes_copy: Vec<usize> = (*indexes).to_vec();
-
-        // indexes_copy.sort_unstable();
-        // indexes_copy.dedup();
-
-        // indexes_copy.iter().rev().for_each(|i| {
-        //     self.connection_genes.remove(*i);
-        // });
     }
 
     /// Add a new hidden node to the genome
@@ -405,26 +393,9 @@ impl Genome {
         index
     }
 
-    // fn remove_node(&mut self, index: usize) {
-    //     if !matches!(self.node_genes.get(index).unwrap().kind, NodeKind::Hidden) {
-    //         panic!("Cannot remove a non hidden node");
-    //     }
-
-    //     self.node_genes.remove(index);
-    //     self.connection_genes.iter_mut().for_each(|c| {
-    //         if c.from > index {
-    //             c.from -= 1;
-    //         }
-
-    //         if c.to > index {
-    //             c.to -= 1;
-    //         }
-    //     });
-    // }
-
     pub fn mutate(&mut self) {
         let kind: MutationKind = random();
-        mutation::mutate(kind, self);
+        mutation::mutate(kind.clone(), self);
     }
 }
 

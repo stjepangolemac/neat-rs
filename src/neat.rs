@@ -1,5 +1,5 @@
 use crate::genome::mutation::MutationKind;
-use crate::genome::Genome;
+use crate::genome::{crossover, Genome};
 use crate::network::Network;
 use rand::random;
 use std::collections::HashMap;
@@ -13,6 +13,7 @@ pub struct NEAT {
     node_cost: f64,
     connection_cost: f64,
     fitness_fn: fn(&mut Network) -> f64,
+    sexual_reproduction: f64,
     mutation_kinds: Vec<MutationKind>,
     genomes: Vec<Genome>,
     fitnesses: HashMap<Genome, f64>,
@@ -25,12 +26,13 @@ impl NEAT {
         NEAT {
             inputs,
             outputs,
-            generations: 100,
+            generations: 150,
             population_size: 300,
             elitism: 0.3,
             node_cost: 0.,
             connection_cost: 0.,
             fitness_fn,
+            sexual_reproduction: 0.5,
             mutation_kinds: vec![
                 AddConnection,
                 RemoveConnection,
@@ -77,10 +79,15 @@ impl NEAT {
         self.connection_cost = cost;
     }
 
+    pub fn set_sexual_reproduction(&mut self, ratio: f64) {
+        self.sexual_reproduction = ratio;
+    }
+
     pub fn start(&mut self) -> (Network, f64) {
         self.genomes = (0..self.population_size)
             .map(|_| Genome::new(self.inputs, self.outputs))
             .collect();
+
         self.test_fitness();
 
         for i in 0..self.generations {
@@ -90,32 +97,36 @@ impl NEAT {
                 (self.genomes.len() * (self.elitism * 100.).round() as usize).div_euclid(100);
             let mut elites: Vec<Genome> = self.genomes.iter().take(elites_count).cloned().collect();
 
-            elites.sort_by(|a, b| {
-                let fitness_a = self.fitnesses.get(&a).unwrap();
-                let fitness_b = self.fitnesses.get(&b).unwrap();
-
-                if (fitness_a - fitness_b).abs() < f64::EPSILON {
-                    std::cmp::Ordering::Equal
-                } else if fitness_a > fitness_b {
-                    std::cmp::Ordering::Less
-                } else {
-                    std::cmp::Ordering::Greater
-                }
-            });
-
             let mut offspring = vec![];
 
             while elites.len() + offspring.len() < self.population_size {
-                let parent_index = random::<usize>() % elites.len();
-                let parent = elites.get(parent_index).unwrap();
+                let maybe_child = if random::<f64>() < self.sexual_reproduction {
+                    // Crossover
+                    let parent_index_a = random::<usize>() % elites.len();
+                    let parent_a = elites.get(parent_index_a).unwrap();
+                    let parent_fitness_a = self.fitnesses.get(&parent_a).unwrap();
 
-                let mut child = parent.clone();
-                child.mutate();
+                    let parent_index_b = random::<usize>() % elites.len();
+                    let parent_b = elites.get(parent_index_b).unwrap();
+                    let parent_fitness_b = self.fitnesses.get(&parent_b).unwrap();
 
-                offspring.push(child);
+                    crossover((parent_a, *parent_fitness_a), (parent_b, *parent_fitness_b))
+                } else {
+                    // Mutation
+                    let parent_index = random::<usize>() % elites.len();
+                    let parent = elites.get(parent_index).unwrap();
+
+                    let mut child = parent.clone();
+                    child.mutate();
+
+                    Some(child)
+                };
+
+                if let Some(child) = maybe_child {
+                    offspring.push(child);
+                }
             }
 
-            elites.iter_mut().for_each(|g| g.mutate());
             elites.append(&mut offspring);
 
             self.genomes = elites;
@@ -189,7 +200,7 @@ mod tests {
             1. / (1. + error)
         });
 
-        system.set_generations(30);
+        system.set_elitism(0.85);
 
         let (mut network, fitness) = system.start();
 

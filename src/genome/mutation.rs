@@ -34,7 +34,7 @@ impl Distribution<MutationKind> for Standard {
             0 => MutationKind::AddConnection,
             1 => MutationKind::RemoveConnection,
             2 => MutationKind::AddNode,
-            // 3 => MutationKind::RemoveNode,
+            3 => MutationKind::RemoveNode,
             4 => MutationKind::ModifyWeight,
             5 => MutationKind::ModifyBias,
             _ => MutationKind::ModifyActivation,
@@ -228,12 +228,6 @@ fn remove_node(g: &mut Genome) {
                 .iter()
                 .find(|c| c.from == *from && c.to == *to && !c.disabled)
                 .is_none()
-            // g.connection_genes.iter().all(|c| {
-            //     let different_from = c.from != *from || c.to != *to;
-            //     let different_to = c.to != *to;
-
-            //     different_from || different_to
-            // })
         })
         .collect();
 
@@ -426,7 +420,7 @@ mod tests {
         let mut times: HashMap<MutationKind, Vec<time::Duration>> = HashMap::new();
         let mut g = Genome::new(1, 1);
 
-        let limit = 50;
+        let limit = 500;
         for i in 1..=limit {
             let kind: MutationKind = random();
 
