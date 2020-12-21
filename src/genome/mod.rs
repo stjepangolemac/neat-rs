@@ -393,9 +393,8 @@ impl Genome {
         index
     }
 
-    pub fn mutate(&mut self) {
-        let kind: MutationKind = random();
-        mutation::mutate(kind.clone(), self);
+    pub fn mutate(&mut self, kind: &MutationKind) {
+        mutation::mutate(kind, self);
     }
 }
 

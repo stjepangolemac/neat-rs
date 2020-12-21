@@ -163,12 +163,7 @@ mod tests {
 
     #[test]
     fn init_network() {
-        let mut g = Genome::new(1, 1);
-
-        for _ in 0..5 {
-            g.mutate();
-        }
-
+        let g = Genome::new(1, 1);
         Network::from(&g);
     }
 

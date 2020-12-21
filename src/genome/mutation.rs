@@ -4,7 +4,7 @@ use rand::Rng;
 
 use super::{ActivationKind, Genome, NodeKind};
 
-pub fn mutate(kind: MutationKind, g: &mut Genome) {
+pub fn mutate(kind: &MutationKind, g: &mut Genome) {
     match kind {
         MutationKind::AddConnection => add_connection(g),
         MutationKind::RemoveConnection => disable_connection(g),
@@ -420,12 +420,12 @@ mod tests {
         let mut times: HashMap<MutationKind, Vec<time::Duration>> = HashMap::new();
         let mut g = Genome::new(1, 1);
 
-        let limit = 500;
+        let limit = 50;
         for i in 1..=limit {
             let kind: MutationKind = random();
 
             let before = std::time::Instant::now();
-            mutate(kind.clone(), &mut g);
+            mutate(&kind, &mut g);
             let after = std::time::Instant::now();
             let duration = after.duration_since(before);
 
