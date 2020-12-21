@@ -25,6 +25,9 @@ pub struct Configuration {
 
     /// The types of mutations available and their sampling weights
     pub mutation_kinds: Vec<(MutationKind, usize)>,
+
+    /// The process will stop if the fitness goal is reached
+    pub fitness_goal: Option<f64>,
 }
 
 impl Default for Configuration {
@@ -37,6 +40,7 @@ impl Default for Configuration {
             connection_cost: 0.,
             crossover_ratio: 0.5,
             mutation_kinds: default_mutation_kinds(),
+            fitness_goal: None,
         }
     }
 }

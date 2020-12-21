@@ -82,6 +82,23 @@ impl NEAT {
 
             self.genomes = elites;
             self.test_fitness();
+
+            let goal_reached = {
+                let best_genome = self.genomes.first().unwrap();
+                let best_fitness = self.fitnesses.get(&best_genome).unwrap();
+
+                println!("Best fitness atm {}", best_fitness);
+
+                if let Some(goal) = self.configuration.fitness_goal {
+                    *best_fitness >= goal
+                } else {
+                    false
+                }
+            };
+
+            if goal_reached {
+                break;
+            }
         }
 
         let best_genome = self.genomes.first().unwrap();
@@ -174,7 +191,11 @@ mod tests {
             1. / (1. + error)
         });
 
-        system.configuration.max_generations = 50;
+        system.set_configuration(Configuration {
+            max_generations: 50,
+            fitness_goal: Some(1.0),
+            ..Default::default()
+        });
 
         let (mut network, fitness) = system.start();
 
