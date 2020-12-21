@@ -3,6 +3,10 @@ use rand::random;
 use super::{ConnectionGene, Genome, NodeGene};
 
 pub fn crossover(a: (&Genome, f64), b: (&Genome, f64)) -> Option<Genome> {
+    if (a.0.inputs != b.0.inputs) || (a.0.outputs != b.0.outputs) {
+        return None;
+    }
+
     let mut parent_a = a.0.clone();
     let mut fitness_a = a.1;
 
@@ -65,4 +69,36 @@ pub fn crossover(a: (&Genome, f64), b: (&Genome, f64)) -> Option<Genome> {
     child.node_genes = child_node_genes;
 
     child.node_order().and(Some(child))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn crossover_success() {
+        let a = Genome::new(2, 2);
+        let b = Genome::new(2, 2);
+
+        let maybe_child = crossover((&a, 1.), (&b, 2.));
+        assert!(maybe_child.is_some());
+    }
+
+    #[test]
+    fn crossover_outputs_wrong() {
+        let a = Genome::new(2, 3);
+        let b = Genome::new(2, 2);
+
+        let maybe_child = crossover((&a, 1.), (&b, 2.));
+        assert!(maybe_child.is_none());
+    }
+
+    #[test]
+    fn crossover_inputs_wrong() {
+        let a = Genome::new(3, 2);
+        let b = Genome::new(2, 2);
+
+        let maybe_child = crossover((&a, 1.), (&b, 2.));
+        assert!(maybe_child.is_none());
+    }
 }
