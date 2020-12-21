@@ -1,4 +1,3 @@
-use rand::random;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::activation::ActivationKind;
@@ -67,7 +66,7 @@ impl Genome {
         &self.connection_genes
     }
 
-    fn get_node_order(
+    fn calculate_node_order(
         &self,
         additional_connections: Option<Vec<ConnectionGene>>,
     ) -> Option<Vec<usize>> {
@@ -125,14 +124,64 @@ impl Genome {
     }
 
     pub fn node_order(&self) -> Option<Vec<usize>> {
-        self.get_node_order(None)
+        self.calculate_node_order(None)
     }
 
     pub fn node_order_with(
         &self,
         additional_connections: Vec<ConnectionGene>,
     ) -> Option<Vec<usize>> {
-        self.get_node_order(Some(additional_connections))
+        self.calculate_node_order(Some(additional_connections))
+    }
+
+    fn calculate_node_distance_from_inputs(&self) -> HashMap<usize, usize> {
+        // Inputs are immediately added with distance of 0
+        let mut distances: HashMap<usize, usize> = self
+            .nodes()
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| matches!(n.kind, NodeKind::Input))
+            .map(|(i, _)| (i, 0))
+            .collect();
+
+        // Inputs need to be visited first
+        let mut to_visit: VecDeque<usize> = self
+            .nodes()
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| matches!(n.kind, NodeKind::Input))
+            .map(|(i, _)| i)
+            .collect();
+
+        while let Some(i) = to_visit.pop_front() {
+            let source_distance = *distances.get(&i).unwrap_or(&0);
+
+            self.connections()
+                .iter()
+                .filter(|c| c.from == i)
+                .for_each(|c| {
+                    let node_index = c.to;
+                    let potential_distance = source_distance + 1;
+
+                    let maybe_change = if let Some(distance) = distances.get(&node_index) {
+                        if potential_distance > *distance {
+                            to_visit.push_back(node_index);
+                            Some(potential_distance)
+                        } else {
+                            None
+                        }
+                    } else {
+                        to_visit.push_back(node_index);
+                        Some(potential_distance)
+                    };
+
+                    if let Some(new_distance) = maybe_change {
+                        distances.insert(node_index, new_distance);
+                    }
+                });
+        }
+
+        distances
     }
 
     fn is_projecting_directly(&self, source: usize, target: usize) -> bool {
@@ -180,12 +229,12 @@ impl Genome {
         let is_from_output = matches!(from_node.kind, NodeKind::Output);
         let is_to_input = matches!(to_node.kind, NodeKind::Input);
 
-        if is_from_output
-            || is_to_input
-            || self
-                .node_order_with(vec![ConnectionGene::new(from, to)])
-                .is_none()
-        {
+        let distances = self.calculate_node_distance_from_inputs();
+        let from_distance = distances.get(&from).unwrap();
+        let to_distance = distances.get(&to).unwrap_or(&usize::MAX);
+        let is_recurrent = from_distance > to_distance;
+
+        if is_from_output || is_to_input || is_recurrent {
             false
         } else {
             !self.is_projecting(from, to)
@@ -409,5 +458,33 @@ mod tests {
         g.add_connection(5, 4).unwrap();
 
         assert!(g.add_connection(3, 5).is_err());
+    }
+
+    #[test]
+    fn node_distances_simple() {
+        let g = Genome::new(2, 1);
+
+        dbg!(g.calculate_node_distance_from_inputs());
+    }
+
+    #[test]
+    fn node_distances_block_recurrent_connections() {
+        let mut g = Genome::empty(2, 1);
+
+        g.node_genes.push(NodeGene::new(NodeKind::Input));
+        g.node_genes.push(NodeGene::new(NodeKind::Input));
+        g.node_genes.push(NodeGene::new(NodeKind::Output));
+        g.node_genes.push(NodeGene::new(NodeKind::Hidden));
+        g.node_genes.push(NodeGene::new(NodeKind::Hidden));
+        g.node_genes.push(NodeGene::new(NodeKind::Hidden));
+
+        g.add_connection(0, 3).unwrap();
+        g.add_connection(1, 3).unwrap();
+        g.add_connection(3, 4).unwrap();
+        g.add_connection(4, 5).unwrap();
+        g.add_connection(4, 2).unwrap();
+        g.add_connection(5, 2).unwrap();
+
+        assert!(g.add_connection(5, 3).is_err());
     }
 }

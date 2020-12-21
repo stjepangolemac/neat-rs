@@ -204,7 +204,6 @@ mod tests {
         system.set_configuration(Configuration {
             max_generations: 50,
             fitness_goal: Some(1.0),
-            node_cost: -0.0001,
             ..Default::default()
         });
         system.add_hook(5, |i, system| {
