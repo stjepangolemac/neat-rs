@@ -4,6 +4,7 @@ use crate::genome::mutation::MutationKind;
 use crate::network::Network;
 
 /// Holds configuration options of the whole NEAT process
+#[derive(Debug)]
 pub struct Configuration {
     /// The generations limit of for the evolution process
     pub max_generations: usize,

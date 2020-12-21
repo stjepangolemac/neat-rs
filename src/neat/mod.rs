@@ -5,8 +5,10 @@ use crate::genome::mutation::MutationKind;
 use crate::genome::{crossover, Genome};
 use crate::network::Network;
 use configuration::Configuration;
+use reporter::Reporter;
 
 mod configuration;
+mod reporter;
 
 pub struct NEAT {
     inputs: usize,
@@ -15,6 +17,7 @@ pub struct NEAT {
     genomes: Vec<Genome>,
     fitnesses: HashMap<Genome, f64>,
     configuration: Configuration,
+    reporter: Reporter,
 }
 
 impl NEAT {
@@ -26,6 +29,7 @@ impl NEAT {
             genomes: vec![],
             fitnesses: HashMap::new(),
             configuration: Default::default(),
+            reporter: Reporter::new(),
         }
     }
 
@@ -41,8 +45,6 @@ impl NEAT {
         self.test_fitness();
 
         for i in 0..self.configuration.max_generations {
-            println!("Generation {}", i);
-
             let elites_count = (self.genomes.len()
                 * (self.configuration.elitism * 100.).round() as usize)
                 .div_euclid(100);
@@ -83,14 +85,13 @@ impl NEAT {
             self.genomes = elites;
             self.test_fitness();
 
-            let goal_reached = {
-                let best_genome = self.genomes.first().unwrap();
-                let best_fitness = self.fitnesses.get(&best_genome).unwrap();
+            self.reporter.report(i, &self);
 
-                println!("Best fitness atm {}", best_fitness);
+            let goal_reached = {
+                let (_, best_fitness) = self.get_best();
 
                 if let Some(goal) = self.configuration.fitness_goal {
-                    *best_fitness >= goal
+                    best_fitness >= goal
                 } else {
                     false
                 }
@@ -101,10 +102,8 @@ impl NEAT {
             }
         }
 
-        let best_genome = self.genomes.first().unwrap();
-        let best_fitness = self.fitnesses.get(&best_genome).unwrap();
-
-        (Network::from(best_genome), *best_fitness)
+        let (best_genome, best_fitness) = self.get_best();
+        (Network::from(best_genome), best_fitness)
     }
 
     fn test_fitness(&mut self) {
@@ -144,6 +143,13 @@ impl NEAT {
         self.genomes = copy;
     }
 
+    fn get_best(&self) -> (&Genome, f64) {
+        let best_genome = self.genomes.first().unwrap();
+        let best_fitness = self.fitnesses.get(&best_genome).unwrap();
+
+        (best_genome, *best_fitness)
+    }
+
     fn pick_mutation(&self) -> &MutationKind {
         use rand::{distributions::Distribution, thread_rng};
         use rand_distr::weighted_alias::WeightedAliasIndex;
@@ -165,6 +171,10 @@ impl NEAT {
             .get(dist.sample(&mut rng))
             .unwrap()
             .0
+    }
+
+    pub fn add_hook(&mut self, every: usize, hook: reporter::Hook) {
+        self.reporter.register(every, hook);
     }
 }
 
@@ -194,7 +204,11 @@ mod tests {
         system.set_configuration(Configuration {
             max_generations: 50,
             fitness_goal: Some(1.0),
+            node_cost: -0.0001,
             ..Default::default()
+        });
+        system.add_hook(5, |i, system| {
+            println!("Generation {}, fitness at {}", i, system.get_best().1)
         });
 
         let (mut network, fitness) = system.start();
