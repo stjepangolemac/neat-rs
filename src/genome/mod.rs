@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use crate::activation::ActivationKind;
 use crate::node::NodeKind;
 pub use crossover::*;
-use genes::{ConnectionGene, NodeGene};
+pub use genes::{ConnectionGene, NodeGene};
 use mutation::MutationKind;
 
 pub mod crossover;

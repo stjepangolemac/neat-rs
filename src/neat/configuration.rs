@@ -1,7 +1,6 @@
 use std::default::Default;
 
 use crate::genome::mutation::MutationKind;
-use crate::network::Network;
 
 /// Holds configuration options of the whole NEAT process
 #[derive(Debug)]
@@ -29,6 +28,15 @@ pub struct Configuration {
 
     /// The process will stop if the fitness goal is reached
     pub fitness_goal: Option<f64>,
+
+    /// Controls how non shared genes affect speciation
+    pub speciation_disjoint_coefficient: f64,
+
+    /// Controls how shared gene weights affect speciation
+    pub speciation_weight_coeficcient: f64,
+
+    /// A limit on how distant two genomes can be to belong to the same species
+    pub compatibility_threshold: f64,
 }
 
 impl Default for Configuration {
@@ -42,6 +50,9 @@ impl Default for Configuration {
             crossover_ratio: 0.5,
             mutation_kinds: default_mutation_kinds(),
             fitness_goal: None,
+            speciation_disjoint_coefficient: 1.,
+            speciation_weight_coeficcient: 0.1,
+            compatibility_threshold: 3.,
         }
     }
 }

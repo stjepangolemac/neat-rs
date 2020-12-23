@@ -9,6 +9,7 @@ use reporter::Reporter;
 
 mod configuration;
 mod reporter;
+mod speciation;
 
 pub struct NEAT {
     inputs: usize,
