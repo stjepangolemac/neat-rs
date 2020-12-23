@@ -249,21 +249,17 @@ mod tests {
 
         system.set_configuration(Configuration {
             population_size: 150,
-            max_generations: 5000,
+            max_generations: 500,
             fitness_goal: Some(0.934), // Perfect score for these settings
             node_cost: 0.01,
             connection_cost: 0.005,
             compatibility_threshold: 0.85,
             ..Default::default()
         });
-        system.add_hook(5, |i, system| {
+        system.add_hook(1, |i, system| {
             let (best_genome_index, _, fitness) = system.get_best();
-            let species_members = system.genomes.species_size_for(best_genome_index);
 
-            println!(
-                "Generation {}, best fitness at {}, species has {} members",
-                i, fitness, species_members,
-            );
+            println!("Generation {}, best fitness is {}", i, fitness);
         });
 
         let (mut network, fitness) = system.start();
