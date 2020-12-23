@@ -107,7 +107,7 @@ fn disable_connection(g: &mut Genome) {
             let from_connections_count = g
                 .connection_genes
                 .iter()
-                .filter(|c| c.from == from_index && c.disabled)
+                .filter(|c| c.from == from_index && !c.disabled)
                 .count();
             // Number of incoming connections for the `to` node
             let to_connections_count = g

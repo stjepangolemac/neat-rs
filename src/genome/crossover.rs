@@ -30,17 +30,39 @@ pub fn crossover(a: (&Genome, f64), b: (&Genome, f64)) -> Option<Genome> {
                 .iter()
                 .find(|cb| cb.innovation_number() == connection.innovation_number());
 
-            if let Some(counterpart_connection) = maybe_counterpart_connection {
-                if random::<f64>() < 0.5 {
-                    connection
+            // Chooses connection from one of the parents
+            let chosen_connection =
+                if let Some(counterpart_connection) = maybe_counterpart_connection {
+                    if random::<f64>() < 0.5 {
+                        connection
+                    } else {
+                        counterpart_connection
+                    }
                 } else {
-                    counterpart_connection
+                    connection
+                };
+
+            /*
+             * Chooses will the new connection be disabled
+             * - disabled in both parents, 75% chance it will be disabled
+             * - enabled in both parents, it will be enabled
+             * - disabled in one parent, 50% chance it will stay disabled
+             */
+            let new_disabled = if let Some(counterpart_connection) = maybe_counterpart_connection {
+                match (connection.disabled, counterpart_connection.disabled) {
+                    (true, true) => random::<f64>() < 0.75,
+                    (false, false) => false,
+                    _ => random::<f64>() < 0.5,
                 }
             } else {
-                connection
-            }
+                connection.disabled
+            };
+
+            let mut new_connection = chosen_connection.clone();
+            new_connection.disabled = new_disabled;
+
+            new_connection
         })
-        .cloned()
         .collect();
 
     let required_node_count = 1 + child_connection_genes

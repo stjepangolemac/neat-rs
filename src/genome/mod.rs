@@ -81,6 +81,10 @@ impl Genome {
             connections.append(&mut conns);
         }
 
+        if connections.is_empty() {
+            return None;
+        }
+
         let mut visited: Vec<usize> = vec![];
 
         // Input nodes are automatically visited as they get their values from inputs

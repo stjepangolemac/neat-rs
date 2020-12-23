@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use super::configuration::Configuration;
 use crate::genome::ConnectionGene;
@@ -6,15 +8,15 @@ use crate::genome::Genome;
 
 /// Holds all genomes and species, does the process of speciation
 #[derive(Debug)]
-struct GenomeBank<'s> {
-    configuration: &'s Configuration,
+pub struct GenomeBank {
+    configuration: Rc<RefCell<Configuration>>,
     genomes: Vec<Genome>,
     fitnesses: HashMap<usize, f64>,
     species: HashMap<usize, Vec<usize>>,
 }
 
-impl<'s> GenomeBank<'s> {
-    pub fn new(configuration: &'s Configuration) -> Self {
+impl GenomeBank {
+    pub fn new(configuration: Rc<RefCell<Configuration>>) -> Self {
         GenomeBank {
             configuration,
             genomes: vec![],
@@ -42,9 +44,18 @@ impl<'s> GenomeBank<'s> {
         self.fitnesses.insert(tested_genome_index, fitness);
     }
 
+    /// Returns a reference to the fitnesses
+    pub fn fitnesses(&self) -> &HashMap<usize, f64> {
+        &self.fitnesses
+    }
+
     /// Checks that all genomes have had their fitness measured
     fn all_genomes_tested(&self) -> bool {
         (0..self.genomes.len()).all(|index| self.fitnesses.get(&index).is_some())
+    }
+
+    pub fn species(&self) -> &HashMap<usize, Vec<usize>> {
+        &self.species
     }
 
     /// Classifies genomes into their respective species
@@ -79,11 +90,9 @@ impl<'s> GenomeBank<'s> {
     }
 
     fn are_genomes_related(&self, a: &Genome, b: &Genome) -> bool {
-        let Configuration {
-            speciation_disjoint_coefficient,
-            speciation_weight_coeficcient,
-            ..
-        } = self.configuration;
+        let configuration = self.configuration.borrow();
+        let speciation_disjoint_coefficient = configuration.speciation_disjoint_coefficient;
+        let speciation_weight_coefficient = configuration.speciation_weight_coeficcient;
 
         let max_connection_genes = usize::max(a.connections().len(), b.connections().len());
 
@@ -137,11 +146,19 @@ impl<'s> GenomeBank<'s> {
             .map(|(connection_a, connection_b)| (connection_a.weight - connection_b.weight).abs())
             .sum::<f64>()
             / common_connections.len() as f64
-            * speciation_weight_coeficcient;
+            * speciation_weight_coefficient;
 
         let distance = disjoint_factor / max_connection_genes as f64 + weight_factor;
 
-        distance <= self.configuration.compatibility_threshold
+        distance <= configuration.compatibility_threshold
+    }
+
+    pub fn species_size_for(&self, genome_index: usize) -> usize {
+        self.species
+            .iter()
+            .find(|(_, genome_indexes)| genome_indexes.contains(&genome_index))
+            .map(|(_, genome_indexes)| genome_indexes.len())
+            .unwrap()
     }
 
     pub fn adjusted_fitnesses(&self) -> Vec<f64> {
@@ -173,8 +190,8 @@ mod tests {
 
     #[test]
     fn can_add_genome() {
-        let configuration: Configuration = Default::default();
-        let mut bank = GenomeBank::new(&configuration);
+        let configuration: Rc<RefCell<Configuration>> = Default::default();
+        let mut bank = GenomeBank::new(configuration);
 
         let genome = Genome::new(1, 1);
         bank.add_genome(genome);
@@ -182,8 +199,8 @@ mod tests {
 
     #[test]
     fn can_mark_fitness() {
-        let configuration: Configuration = Default::default();
-        let mut bank = GenomeBank::new(&configuration);
+        let configuration: Rc<RefCell<Configuration>> = Default::default();
+        let mut bank = GenomeBank::new(configuration);
 
         let genome = Genome::new(1, 1);
         bank.add_genome(genome);
@@ -193,8 +210,8 @@ mod tests {
 
     #[test]
     fn checks_all_have_fitness_measured() {
-        let configuration: Configuration = Default::default();
-        let mut bank = GenomeBank::new(&configuration);
+        let configuration: Rc<RefCell<Configuration>> = Default::default();
+        let mut bank = GenomeBank::new(configuration);
 
         bank.add_genome(Genome::new(1, 1));
         bank.add_genome(Genome::new(1, 1));
@@ -208,8 +225,8 @@ mod tests {
 
     #[test]
     fn identical_genomes_are_related() {
-        let configuration: Configuration = Default::default();
-        let mut bank = GenomeBank::new(&configuration);
+        let configuration: Rc<RefCell<Configuration>> = Default::default();
+        let mut bank = GenomeBank::new(configuration);
 
         let genome = Genome::new(1, 1);
 
@@ -227,11 +244,11 @@ mod tests {
 
     #[test]
     fn different_genomes_are_not_related() {
-        let configuration = Configuration {
+        let configuration: Rc<RefCell<Configuration>> = Rc::new(RefCell::new(Configuration {
             compatibility_threshold: 0.,
             ..Default::default()
-        };
-        let mut bank = GenomeBank::new(&configuration);
+        }));
+        let mut bank = GenomeBank::new(configuration);
 
         bank.add_genome(Genome::new(1, 1));
         bank.add_genome(Genome::new(1, 1));
@@ -247,8 +264,8 @@ mod tests {
 
     #[test]
     fn identical_genomes_are_same_species() {
-        let configuration: Configuration = Default::default();
-        let mut bank = GenomeBank::new(&configuration);
+        let configuration: Rc<RefCell<Configuration>> = Default::default();
+        let mut bank = GenomeBank::new(configuration);
 
         let genome = Genome::new(1, 1);
 
@@ -262,11 +279,11 @@ mod tests {
 
     #[test]
     fn different_genomes_are_different_species() {
-        let configuration = Configuration {
+        let configuration: Rc<RefCell<Configuration>> = Rc::new(RefCell::new(Configuration {
             compatibility_threshold: 0.,
             ..Default::default()
-        };
-        let mut bank = GenomeBank::new(&configuration);
+        }));
+        let mut bank = GenomeBank::new(configuration);
 
         let genome = Genome::new(1, 1);
 
@@ -286,11 +303,11 @@ mod tests {
         let second_fitness = 5.;
         let third_fitness = 5.;
 
-        let configuration = Configuration {
+        let configuration: Rc<RefCell<Configuration>> = Rc::new(RefCell::new(Configuration {
             compatibility_threshold: 0.,
             ..Default::default()
-        };
-        let mut bank = GenomeBank::new(&configuration);
+        }));
+        let mut bank = GenomeBank::new(configuration);
 
         let genome = Genome::new(1, 1);
 

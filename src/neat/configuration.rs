@@ -52,7 +52,7 @@ impl Default for Configuration {
             fitness_goal: None,
             speciation_disjoint_coefficient: 1.,
             speciation_weight_coeficcient: 0.1,
-            compatibility_threshold: 3.,
+            compatibility_threshold: 2.,
         }
     }
 }
