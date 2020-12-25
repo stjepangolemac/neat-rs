@@ -1,5 +1,5 @@
 [package]
-name = "neat"
+name = "neat-core"
 version = "0.1.0"
 authors = ["Stjepan Golemac <stjepan@tray.io>"]
 edition = "2018"

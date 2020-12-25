@@ -6,7 +6,7 @@ use std::rc::Rc;
 use crate::genome::mutation::MutationKind;
 use crate::genome::{crossover, Genome};
 use crate::network::Network;
-use configuration::Configuration;
+pub use configuration::Configuration;
 use reporter::Reporter;
 use speciation::GenomeBank;
 
@@ -178,7 +178,7 @@ impl NEAT {
             });
     }
 
-    fn get_best(&self) -> (usize, &Genome, f64) {
+    pub fn get_best(&self) -> (usize, &Genome, f64) {
         let (best_genome_index, best_fitness) = self.genomes.fitnesses().iter().fold(
             (0, 0.),
             |(best_index, best_fitness), (genome_index, genome_fitness)| {

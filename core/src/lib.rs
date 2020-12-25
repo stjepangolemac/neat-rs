@@ -4,3 +4,5 @@ mod genome;
 mod neat;
 mod network;
 mod node;
+
+pub use neat::*;

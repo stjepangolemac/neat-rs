@@ -26,7 +26,7 @@ pub fn activate(x: f64, kind: &ActivationKind) -> f64 {
             if x > 0. {
                 x
             } else {
-                0.
+                0.01 * x
             }
         }
         ActivationKind::Step => {
