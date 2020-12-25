@@ -1,19 +1,10 @@
 use rand::random;
 
-trait Environment {
-    type State;
-    type Input;
+use neat_core::{Configuration, NEAT};
 
-    fn state(&self) -> &Self::State;
-    fn step(&mut self, input: Self::Input) -> Result<(), ()>;
+use generic::*;
 
-    fn done(&self) -> bool;
-    fn reset(&mut self);
-
-    fn render(&self);
-
-    fn fitness(&self) -> f64;
-}
+mod generic;
 
 #[derive(Clone, Copy, Debug)]
 enum Mark {
@@ -30,6 +21,7 @@ enum Player {
 
 type Field = [Mark; 9];
 
+#[derive(Debug)]
 struct TicTacToe {
     field: Field,
     first_player: Player,
@@ -92,6 +84,13 @@ impl TicTacToe {
         matches!(self.turn, Player::External)
     }
 
+    pub fn external_mark(&self) -> Mark {
+        match self.first_player {
+            Player::External => Mark::X,
+            Player::Internal => Mark::O,
+        }
+    }
+
     fn game_over(&self) -> bool {
         let fields_full = self.field.iter().all(|mark| !matches!(mark, Mark::Empty));
 
@@ -99,14 +98,7 @@ impl TicTacToe {
     }
 
     fn did_external_win(&self) -> bool {
-        let external_mark = {
-            match self.first_player {
-                Player::External => Mark::X,
-                Player::Internal => Mark::O,
-            }
-        };
-
-        self.did_mark_win(external_mark)
+        self.did_mark_win(self.external_mark())
     }
 
     fn did_internal_win(&self) -> bool {
@@ -118,6 +110,10 @@ impl TicTacToe {
         };
 
         self.did_mark_win(internal_mark)
+    }
+
+    fn is_draw(&self) -> bool {
+        !self.did_external_win() && !self.did_internal_win()
     }
 
     fn did_mark_win(&self, check_mark: Mark) -> bool {
@@ -217,23 +213,110 @@ impl Environment for TicTacToe {
 }
 
 fn main() {
-    let mut env = TicTacToe::new();
+    let mut system = NEAT::new(9, 9, |network| {
+        let games = 20;
+        let mut turns = 0;
+        let mut games_won = 0;
+        let mut games_draw = 0;
 
-    if env.is_external_first() {
-        println!("I am X");
-    } else {
-        println!("I am O");
-    }
+        let mut env = TicTacToe::new();
 
-    loop {
-        if env.game_over() {
-            break;
+        for _ in 0..games {
+            env.reset();
+            let player_mark = env.external_mark();
+
+            loop {
+                if env.game_over() {
+                    break;
+                }
+
+                let inputs: Vec<f64> = env
+                    .state()
+                    .iter()
+                    .map(|mark| match (player_mark, *mark) {
+                        (Mark::X, Mark::X) => 1.,
+                        (Mark::O, Mark::O) => 1.,
+                        (Mark::X, Mark::O) => -1.,
+                        (Mark::O, Mark::X) => -1.,
+                        _ => 0.,
+                    })
+                    .collect();
+
+                let outputs: Vec<f64> = network.forward_pass(inputs.clone());
+                let max_output_index: usize = outputs
+                    .iter()
+                    .enumerate()
+                    .fold((0, -999.), |(max_index, max_output), (index, output)| {
+                        if output > &max_output {
+                            (index, *output)
+                        } else {
+                            (max_index, max_output)
+                        }
+                    })
+                    .0;
+
+                if env.step(max_output_index).is_ok() {
+                    turns += 1;
+                } else {
+                    break;
+                }
+            }
+
+            games_won += if env.did_external_win() { 1 } else { 0 };
+            games_draw += if env.is_draw() { 1 } else { 0 };
         }
 
-        while env.step(random::<usize>() % 9).is_err() {}
-    }
+        games as f64 / (games_won as f64 + games_draw as f64) //+ turns as f64 * 0.01
+    });
 
-    println!("I WON: {}", env.did_external_win());
-    env.render();
-    env.reset();
+    system.set_configuration(Configuration {
+        population_size: 250,
+        max_generations: 5000,
+        node_cost: 0.01,
+        connection_cost: 0.01,
+        compatibility_threshold: 1.5,
+        ..Default::default()
+    });
+    system.add_hook(1, |i, system| {
+        let (_, _, fitness) = system.get_best();
+
+        println!("Generation {}, best fitness is {}", i, fitness);
+    });
+
+    let (mut network, fitness) = system.start();
+
+    println!(
+        "Found network with {} nodes and {} connections, of fitness {}",
+        network.nodes.len(),
+        network.connections.len(),
+        fitness
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn can_run() {
+        let mut env = TicTacToe::new();
+
+        if env.is_external_first() {
+            println!("I am X");
+        } else {
+            println!("I am O");
+        }
+
+        loop {
+            if env.game_over() {
+                break;
+            }
+
+            while env.step(random::<usize>() % 9).is_err() {}
+        }
+
+        println!("I WON: {}", env.did_external_win());
+        env.render();
+        env.reset();
+    }
 }
