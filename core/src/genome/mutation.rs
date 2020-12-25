@@ -1,6 +1,8 @@
 use rand::distributions::{Distribution, Standard};
 use rand::random;
+use rand::thread_rng;
 use rand::Rng;
+use rand_distr::StandardNormal;
 
 use super::{ActivationKind, Genome, NodeKind};
 
@@ -249,7 +251,13 @@ fn change_weight(g: &mut Genome) {
     let index = random::<usize>() % g.connection_genes.len();
     let picked_connection = g.connection_genes.get_mut(index).unwrap();
 
-    picked_connection.weight = random::<f64>() * 2. - 1.;
+    let new_weight = if random::<f64>() < 0.1 {
+        picked_connection.weight + thread_rng().sample::<f64, StandardNormal>(StandardNormal)
+    } else {
+        random::<f64>() * 2. - 1.
+    };
+
+    picked_connection.weight = new_weight.max(-1.).min(1.);
 }
 
 /// Changes the bias of a random non input node
@@ -267,7 +275,13 @@ fn change_bias(g: &mut Genome) {
         .unwrap();
     let picked_node = g.node_genes.get_mut(*index).unwrap();
 
-    picked_node.bias = random::<f64>() * 2. - 1.;
+    let new_bias = if random::<f64>() < 0.1 {
+        picked_node.bias + thread_rng().sample::<f64, StandardNormal>(StandardNormal)
+    } else {
+        random::<f64>() * 2. - 1.
+    };
+
+    picked_node.bias = new_bias.max(-1.).min(1.);
 }
 
 /// Changes the activation function of a random non input node

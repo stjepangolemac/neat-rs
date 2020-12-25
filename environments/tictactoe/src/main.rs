@@ -307,8 +307,8 @@ fn main() {
     });
 
     system.set_configuration(Configuration {
-        population_size: 200,
-        max_generations: 2000,
+        population_size: 50,
+        max_generations: 500,
         node_cost: 0.001,
         connection_cost: 0.0005,
         compatibility_threshold: 0.75,
