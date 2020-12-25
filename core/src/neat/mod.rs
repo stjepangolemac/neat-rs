@@ -19,7 +19,7 @@ pub struct NEAT {
     inputs: usize,
     outputs: usize,
     fitness_fn: fn(&mut Network) -> f64,
-    genomes: GenomeBank,
+    pub genomes: GenomeBank,
     configuration: Rc<RefCell<Configuration>>,
     reporter: Reporter,
 }
@@ -318,7 +318,7 @@ mod tests {
         });
 
         system.set_configuration(Configuration {
-            population_size: 150,
+            population_size: 100,
             max_generations: 500,
             fitness_goal: Some(0.934), // Perfect score for these settings
             node_cost: 0.01,

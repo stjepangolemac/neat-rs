@@ -61,12 +61,12 @@ pub fn default_mutation_kinds() -> Vec<(MutationKind, usize)> {
     use MutationKind::*;
 
     vec![
-        (AddConnection, 2),
-        (RemoveConnection, 2),
-        (AddNode, 1),
-        (RemoveNode, 1),
-        (ModifyWeight, 3),
-        (ModifyBias, 3),
-        (ModifyActivation, 3),
+        (AddConnection, 15),
+        (RemoveConnection, 10),
+        (AddNode, 5),
+        (RemoveNode, 2),
+        (ModifyWeight, 20),
+        (ModifyBias, 20),
+        (ModifyActivation, 15),
     ]
 }
