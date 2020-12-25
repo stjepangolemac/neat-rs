@@ -1,4 +1,5 @@
 use rand::random;
+use rayon::prelude::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -19,7 +20,6 @@ pub struct NEAT {
     outputs: usize,
     fitness_fn: fn(&mut Network) -> f64,
     genomes: GenomeBank,
-    fitnesses: HashMap<Genome, f64>,
     configuration: Rc<RefCell<Configuration>>,
     reporter: Reporter,
 }
@@ -33,7 +33,6 @@ impl NEAT {
             outputs,
             fitness_fn,
             genomes: GenomeBank::new(configuration.clone()),
-            fitnesses: HashMap::new(),
             configuration,
             reporter: Reporter::new(),
         }
@@ -166,16 +165,24 @@ impl NEAT {
             .map(|(index, genome)| (index, Network::from(genome)))
             .collect();
 
-        indexes_and_networks
-            .into_iter()
-            .for_each(|(index, mut network)| {
-                let mut fitness = (self.fitness_fn)(&mut network);
-                fitness -= self.configuration.borrow().node_cost * network.nodes.len() as f64;
-                fitness -=
-                    self.configuration.borrow().connection_cost * network.connections.len() as f64;
+        let node_cost = self.configuration.borrow().node_cost;
+        let connection_cost = self.configuration.borrow().connection_cost;
+        let fitness_fn = self.fitness_fn;
 
-                self.genomes.mark_fitness(index, fitness);
-            });
+        let indexes_and_fitnesses: Vec<(usize, f64)> = indexes_and_networks
+            .into_par_iter()
+            .map(|(index, mut network)| {
+                let mut fitness: f64 = (fitness_fn)(&mut network);
+                fitness -= node_cost * network.nodes.len() as f64;
+                fitness -= connection_cost * network.connections.len() as f64;
+
+                (index, fitness)
+            })
+            .collect();
+
+        indexes_and_fitnesses
+            .into_iter()
+            .for_each(|(index, fitness)| self.genomes.mark_fitness(index, fitness));
     }
 
     pub fn get_best(&self) -> (usize, &Genome, f64) {
