@@ -6,3 +6,4 @@ mod network;
 mod node;
 
 pub use neat::*;
+pub use network::*;

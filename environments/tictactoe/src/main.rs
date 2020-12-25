@@ -1,6 +1,6 @@
 use rand::random;
 
-use neat_core::{Configuration, NEAT};
+use neat_core::{Configuration, Network, NEAT};
 
 use generic::*;
 
@@ -212,9 +212,66 @@ impl Environment for TicTacToe {
     }
 }
 
+fn state_to_inputs(env: &TicTacToe) -> Vec<f64> {
+    let player_mark = env.external_mark();
+
+    env.state()
+        .iter()
+        .map(|mark| match (player_mark, *mark) {
+            (Mark::X, Mark::X) => 1.,
+            (Mark::O, Mark::O) => 1.,
+            (Mark::X, Mark::O) => -1.,
+            (Mark::O, Mark::X) => -1.,
+            _ => 0.,
+        })
+        .collect()
+}
+
+fn move_from_outputs(outputs: &[f64]) -> usize {
+    outputs
+        .iter()
+        .enumerate()
+        .fold((0, -999.), |(max_index, max_output), (index, output)| {
+            if output > &max_output {
+                (index, *output)
+            } else {
+                (max_index, max_output)
+            }
+        })
+        .0
+}
+
+fn play_network(network: &mut Network) {
+    println!("Playing...");
+
+    let mut env = TicTacToe::new();
+
+    let player_mark = env.external_mark();
+    println!("Player mark is {:?}", player_mark);
+
+    loop {
+        env.render();
+
+        if env.game_over() {
+            break;
+        }
+
+        let inputs = state_to_inputs(&env);
+        let outputs: Vec<f64> = network.forward_pass(inputs.clone());
+        let max_output_index: usize = move_from_outputs(&outputs);
+
+        if env.step(max_output_index).is_err() {
+            break;
+        }
+    }
+
+    println!("Game over, last state");
+    env.render();
+}
+
 fn main() {
     let mut system = NEAT::new(9, 9, |network| {
-        let games = 20;
+        let games = 100;
         let mut turns = 0;
         let mut games_won = 0;
         let mut games_draw = 0;
@@ -223,37 +280,15 @@ fn main() {
 
         for _ in 0..games {
             env.reset();
-            let player_mark = env.external_mark();
 
             loop {
                 if env.game_over() {
                     break;
                 }
 
-                let inputs: Vec<f64> = env
-                    .state()
-                    .iter()
-                    .map(|mark| match (player_mark, *mark) {
-                        (Mark::X, Mark::X) => 1.,
-                        (Mark::O, Mark::O) => 1.,
-                        (Mark::X, Mark::O) => -1.,
-                        (Mark::O, Mark::X) => -1.,
-                        _ => 0.,
-                    })
-                    .collect();
-
+                let inputs = state_to_inputs(&env);
                 let outputs: Vec<f64> = network.forward_pass(inputs.clone());
-                let max_output_index: usize = outputs
-                    .iter()
-                    .enumerate()
-                    .fold((0, -999.), |(max_index, max_output), (index, output)| {
-                        if output > &max_output {
-                            (index, *output)
-                        } else {
-                            (max_index, max_output)
-                        }
-                    })
-                    .0;
+                let max_output_index: usize = move_from_outputs(&outputs);
 
                 if env.step(max_output_index).is_ok() {
                     turns += 1;
@@ -266,15 +301,17 @@ fn main() {
             games_draw += if env.is_draw() { 1 } else { 0 };
         }
 
-        games as f64 / (games_won as f64 + games_draw as f64) //+ turns as f64 * 0.01
+        // games as f64 / (games_won as f64 + games_draw as f64) //+ turns as f64 * 0.01
+        // turns as f64 / games as f64
+        games_won as f64 / games as f64
     });
 
     system.set_configuration(Configuration {
-        population_size: 250,
-        max_generations: 5000,
-        node_cost: 0.01,
-        connection_cost: 0.01,
-        compatibility_threshold: 1.5,
+        population_size: 200,
+        max_generations: 2000,
+        node_cost: 0.001,
+        connection_cost: 0.0005,
+        compatibility_threshold: 0.75,
         ..Default::default()
     });
     system.add_hook(1, |i, system| {
@@ -291,6 +328,10 @@ fn main() {
         network.connections.len(),
         fitness
     );
+
+    for _ in 0..5 {
+        play_network(&mut network);
+    }
 }
 
 #[cfg(test)]
