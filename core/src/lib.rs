@@ -1,9 +1,11 @@
 mod activation;
+mod aggregations;
 mod connection;
 mod genome;
 mod neat;
 mod network;
 mod node;
+pub mod reporting;
 
 pub use neat::*;
 pub use network::*;
