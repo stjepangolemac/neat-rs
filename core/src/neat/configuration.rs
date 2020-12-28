@@ -20,11 +20,11 @@ pub struct Configuration {
     /// The fitness cost of every connection in the gene
     pub connection_cost: f64,
 
-    /// The ratio of reproductions by crossover
-    pub crossover_ratio: f64,
-
     /// The mutation rate of offspring
     pub mutation_rate: f64,
+
+    /// The ratio of genomes that will survive to the next generation
+    pub survival_ratio: f64,
 
     /// The types of mutations available and their sampling weights
     pub mutation_kinds: Vec<(MutationKind, usize)>,
@@ -50,8 +50,8 @@ impl Default for Configuration {
             elitism: 0.1,
             node_cost: 0.,
             connection_cost: 0.,
-            crossover_ratio: 0.5,
-            mutation_rate: 0.25,
+            mutation_rate: 0.5,
+            survival_ratio: 0.25,
             mutation_kinds: default_mutation_kinds(),
             fitness_goal: None,
             speciation_disjoint_coefficient: 1.,
@@ -65,13 +65,13 @@ pub fn default_mutation_kinds() -> Vec<(MutationKind, usize)> {
     use MutationKind::*;
 
     vec![
-        (AddConnection, 15),
+        (AddConnection, 10),
         (RemoveConnection, 10),
-        (AddNode, 5),
-        (RemoveNode, 2),
-        (ModifyWeight, 20),
-        (ModifyBias, 20),
-        (ModifyActivation, 15),
-        (ModifyAggregation, 15),
+        (AddNode, 10),
+        (RemoveNode, 10),
+        (ModifyWeight, 10),
+        (ModifyBias, 10),
+        (ModifyActivation, 10),
+        (ModifyAggregation, 10),
     ]
 }

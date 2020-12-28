@@ -54,13 +54,22 @@ impl NEAT {
             self.genomes.speciate();
             self.test_fitness();
 
-            let elites_count = (self.genomes.genomes().len()
-                * (self.configuration.borrow().elitism * 100.).round() as usize)
+            let elitism = self.configuration.borrow().elitism;
+            let population_size = self.configuration.borrow().population_size;
+            let mutation_rate = self.configuration.borrow().mutation_rate;
+            let survival_ratio = self.configuration.borrow().survival_ratio;
+
+            let survived_count = (self.genomes.genomes().len()
+                * (survival_ratio * 100.).round() as usize)
                 .div_euclid(100);
+
+            let elites_count =
+                (self.genomes.genomes().len() * (elitism * 100.).round() as usize).div_euclid(100);
 
             let all_genomes: Vec<&Genome> = self
                 .genomes_by_adjusted_fitness()
                 .iter()
+                .take(survived_count)
                 .map(|(genome, _)| *genome)
                 .collect();
             let mut elites: Vec<Genome> = all_genomes
@@ -72,10 +81,6 @@ impl NEAT {
             let non_elites = all_genomes;
 
             let mut offspring = vec![];
-
-            let population_size = self.configuration.borrow().population_size;
-            let crossover_ratio = self.configuration.borrow().crossover_ratio;
-            let mutation_rate = self.configuration.borrow().mutation_rate;
 
             while (elites.len() + offspring.len()) < population_size {
                 let crossover_data: Vec<(&Genome, f64, &Genome, f64)> = (0..population_size
@@ -280,10 +285,10 @@ mod tests {
 
         system.set_configuration(Configuration {
             population_size: 100,
-            max_generations: 5000,
-            fitness_goal: Some(0.934), // Perfect score for these settings
-            node_cost: 0.01,
-            connection_cost: 0.005,
+            max_generations: 500,
+            fitness_goal: Some(0.95),
+            node_cost: 0.,
+            connection_cost: 0.0,
             compatibility_threshold: 0.85,
             ..Default::default()
         });
@@ -301,7 +306,7 @@ mod tests {
         //     dbg!(i, o);
         // }
 
-        dbg!(&network, &fitness);
+        // dbg!(&network, &fitness);
 
         println!(
             "Found network with {} nodes and {} connections, of fitness {}",
