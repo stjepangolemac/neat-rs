@@ -90,11 +90,35 @@ impl GenomeBank {
     }
 
     fn are_genomes_related(&self, a: &Genome, b: &Genome) -> bool {
-        let configuration = self.configuration.borrow();
-        let speciation_disjoint_coefficient = configuration.speciation_disjoint_coefficient;
-        let speciation_weight_coefficient = configuration.speciation_weight_coeficcient;
+        let (
+            distance_connection_disjoint_coefficient,
+            distance_connection_weight_coeficcient,
+            distance_connection_disabled_coefficient,
+            distance_node_bias_coefficient,
+            distance_node_activation_coefficient,
+            distance_node_aggregation_coefficient,
+            compatibility_threshold,
+        ) = {
+            let conf = self.configuration.borrow();
+
+            (
+                conf.distance_connection_disjoint_coefficient,
+                conf.distance_connection_weight_coeficcient,
+                conf.distance_connection_disabled_coefficient,
+                conf.distance_node_bias_coefficient,
+                conf.distance_node_activation_coefficient,
+                conf.distance_node_aggregation_coefficient,
+                conf.compatibility_threshold,
+            )
+        };
+
+        let mut distance = 0.;
 
         let max_connection_genes = usize::max(a.connections().len(), b.connections().len());
+        let max_node_genes = usize::max(a.nodes().len(), b.nodes().len());
+
+        let mut disjoint_connections: Vec<&ConnectionGene> = vec![];
+        let mut common_connections: Vec<(&ConnectionGene, &ConnectionGene)> = vec![];
 
         let mut disjoint_map: HashMap<usize, bool> = HashMap::new();
         a.connections()
@@ -108,9 +132,6 @@ impl GenomeBank {
                     disjoint_map.insert(innovation_number, true);
                 }
             });
-
-        let mut disjoint_connections: Vec<&ConnectionGene> = vec![];
-        let mut common_connections: Vec<(&ConnectionGene, &ConnectionGene)> = vec![];
 
         disjoint_map
             .into_iter()
@@ -140,17 +161,50 @@ impl GenomeBank {
                 }
             });
 
-        let disjoint_factor = disjoint_connections.len() as f64 * speciation_disjoint_coefficient;
-        let weight_factor: f64 = common_connections
+        let disjoint_factor =
+            disjoint_connections.len() as f64 * distance_connection_disjoint_coefficient;
+
+        let connections_difference_factor: f64 = common_connections
             .iter()
-            .map(|(connection_a, connection_b)| (connection_a.weight - connection_b.weight).abs())
-            .sum::<f64>()
-            / common_connections.len() as f64
-            * speciation_weight_coefficient;
+            .map(|(connection_a, connection_b)| {
+                let mut connection_distance = 0.;
 
-        let distance = disjoint_factor / max_connection_genes as f64 + weight_factor;
+                if connection_a.disabled != connection_b.disabled {
+                    connection_distance += 1. * distance_connection_disabled_coefficient;
+                }
 
-        distance <= configuration.compatibility_threshold
+                connection_distance += (connection_a.weight - connection_b.weight).abs()
+                    * distance_connection_weight_coeficcient;
+
+                connection_distance
+            })
+            .sum::<f64>();
+
+        let nodes_difference_factor: f64 = a
+            .nodes()
+            .iter()
+            .zip(b.nodes())
+            .map(|(node_a, node_b)| {
+                let mut node_distance = 0.;
+
+                if node_a.activation != node_b.activation {
+                    node_distance += 1. * distance_node_activation_coefficient;
+                }
+
+                if node_a.aggregation != node_b.aggregation {
+                    node_distance += 1. * distance_node_aggregation_coefficient;
+                }
+
+                node_distance += (node_a.bias - node_b.bias).abs() * distance_node_bias_coefficient;
+
+                node_distance
+            })
+            .sum();
+
+        distance += nodes_difference_factor;
+        distance += (connections_difference_factor + disjoint_factor) / max_connection_genes as f64;
+
+        distance <= compatibility_threshold
     }
 
     pub fn species_size_for(&self, genome_index: usize) -> usize {

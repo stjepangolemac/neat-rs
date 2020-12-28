@@ -32,11 +32,18 @@ pub struct Configuration {
     /// The process will stop if the fitness goal is reached
     pub fitness_goal: Option<f64>,
 
-    /// Controls how non shared genes affect speciation
-    pub speciation_disjoint_coefficient: f64,
+    /*
+     * Genomic distance during speciation
+     */
+    /// Controls how much connections can affect distance
+    pub distance_connection_disjoint_coefficient: f64,
+    pub distance_connection_weight_coeficcient: f64,
+    pub distance_connection_disabled_coefficient: f64,
 
-    /// Controls how shared gene weights affect speciation
-    pub speciation_weight_coeficcient: f64,
+    /// Controls how much nodes can affect distance
+    pub distance_node_bias_coefficient: f64,
+    pub distance_node_activation_coefficient: f64,
+    pub distance_node_aggregation_coefficient: f64,
 
     /// A limit on how distant two genomes can be to belong to the same species
     pub compatibility_threshold: f64,
@@ -54,9 +61,13 @@ impl Default for Configuration {
             survival_ratio: 0.25,
             mutation_kinds: default_mutation_kinds(),
             fitness_goal: None,
-            speciation_disjoint_coefficient: 1.,
-            speciation_weight_coeficcient: 0.1,
-            compatibility_threshold: 2.,
+            distance_connection_disjoint_coefficient: 1.,
+            distance_connection_weight_coeficcient: 0.5,
+            distance_connection_disabled_coefficient: 0.5,
+            distance_node_bias_coefficient: 0.33,
+            distance_node_activation_coefficient: 0.33,
+            distance_node_aggregation_coefficient: 0.33,
+            compatibility_threshold: 3.,
         }
     }
 }
