@@ -1,6 +1,10 @@
 use crate::genome::connection::ConnectionGene;
 
 #[derive(Debug)]
+#[cfg_attr(
+    feature = "network-serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Connection {
     pub from: usize,
     pub to: usize,

@@ -1,0 +1,9 @@
+[package]
+name = "neat-export"
+version = "0.1.0"
+authors = ["Stjepan Golemac <stjepan@tray.io>"]
+edition = "2018"
+
+[dependencies]
+neat-core = { path ="../core", features= ["network-serde"] }
+bincode = "1.3.1"

@@ -8,3 +8,7 @@ edition = "2018"
 rand = "0.7.3"
 rand_distr = "0.3.0"
 rayon = "1.5.0"
+serde = { version = "1.0.118", features=["derive"], optional = true }
+
+[features]
+network-serde = ["serde"]

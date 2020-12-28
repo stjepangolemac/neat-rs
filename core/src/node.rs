@@ -3,6 +3,10 @@ use crate::aggregations::Aggregation;
 use crate::genome::node::NodeGene;
 
 #[derive(Debug, Clone, PartialEq, Hash)]
+#[cfg_attr(
+    feature = "network-serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum NodeKind {
     Input,
     Hidden,
@@ -11,6 +15,10 @@ pub enum NodeKind {
 }
 
 #[derive(Debug)]
+#[cfg_attr(
+    feature = "network-serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Node {
     pub kind: NodeKind,
     pub aggregation: Aggregation,

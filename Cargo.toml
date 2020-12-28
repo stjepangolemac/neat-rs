@@ -1,2 +1,2 @@
 [workspace]
-members = ["core", "environment", "environments/*", "examples/*"]
+members = ["core", "export", "environment", "environments/*", "examples/*"]

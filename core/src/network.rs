@@ -5,6 +5,10 @@ use crate::genome::Genome;
 use crate::node::*;
 
 #[derive(Debug)]
+#[cfg_attr(
+    feature = "network-serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Network {
     pub input_count: usize,
     pub output_count: usize,

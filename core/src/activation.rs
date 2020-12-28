@@ -2,6 +2,10 @@ use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 
 #[derive(Debug, Clone, PartialEq, Hash)]
+#[cfg_attr(
+    feature = "network-serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum ActivationKind {
     Input,
     Tanh,
