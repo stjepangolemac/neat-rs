@@ -293,8 +293,7 @@ mod tests {
             ..Default::default()
         });
         system.add_hook(1, |i, system| {
-            let (best_genome_index, _, fitness) = system.get_best();
-
+            let (_, _, fitness) = system.get_best();
             println!("Generation {}, best fitness is {}", i, fitness);
         });
 
