@@ -286,9 +286,11 @@ mod tests {
         system.set_configuration(Configuration {
             population_size: 100,
             max_generations: 50000,
-            fitness_goal: Some(1.),
+            mutation_rate: 0.75,
+            fitness_goal: Some(0.95),
             node_cost: 0.,
-            connection_cost: 0.0,
+            connection_cost: 0.,
+            compatibility_threshold: 3.,
             ..Default::default()
         });
         system.add_hook(1, |i, system| {

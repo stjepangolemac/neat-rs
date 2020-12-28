@@ -216,14 +216,24 @@ impl GenomeBank {
     }
 
     pub fn adjusted_fitnesses(&self) -> Vec<f64> {
+        let (node_cost, connection_cost) = {
+            let conf = self.configuration.borrow();
+
+            (conf.node_cost, conf.connection_cost)
+        };
+
         self.genomes
             .iter()
             .enumerate()
-            .map(|(index, _)| {
+            .map(|(index, genome)| {
                 let fitness = self
                     .fitnesses
                     .get(&index)
                     .expect("Fitness of genome not marked");
+
+                let genome_node_cost = genome.nodes().len() as f64 * node_cost;
+                let genome_connection_cost = genome.nodes().len() as f64 * connection_cost;
+
                 let related_genome_count = self
                     .species
                     .iter()
@@ -232,7 +242,7 @@ impl GenomeBank {
                     .unwrap()
                     .len();
 
-                fitness / related_genome_count as f64
+                (fitness - genome_node_cost - genome_connection_cost) / related_genome_count as f64
             })
             .collect()
     }
