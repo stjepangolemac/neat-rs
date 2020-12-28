@@ -113,7 +113,7 @@ impl TicTacToe {
     }
 
     fn is_draw(&self) -> bool {
-        !self.did_external_win() && !self.did_internal_win()
+        self.game_over() && !self.did_external_win() && !self.did_internal_win()
     }
 
     fn did_mark_win(&self, check_mark: Mark) -> bool {
@@ -303,7 +303,7 @@ fn main() {
 
         // games as f64 / (games_won as f64 + games_draw as f64) //+ turns as f64 * 0.01
         // turns as f64 / games as f64
-        games_won as f64 / games as f64
+        (games_won as f64 + games_draw as f64) / games as f64
     });
 
     system.set_configuration(Configuration {
@@ -311,7 +311,7 @@ fn main() {
         max_generations: 500,
         node_cost: 0.001,
         connection_cost: 0.0005,
-        compatibility_threshold: 0.75,
+        compatibility_threshold: 3.,
         ..Default::default()
     });
     system.add_hook(1, |i, system| {
