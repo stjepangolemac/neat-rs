@@ -1,14 +1,15 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::activation::ActivationKind;
+use crate::mutations::MutationKind;
 use crate::node::NodeKind;
+pub use connection::ConnectionGene;
 pub use crossover::*;
-pub use genes::{ConnectionGene, NodeGene};
-use mutation::MutationKind;
+pub use node::NodeGene;
 
+pub mod connection;
 pub mod crossover;
-pub mod genes;
-pub mod mutation;
+pub mod node;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Genome {
@@ -62,8 +63,16 @@ impl Genome {
         &self.node_genes
     }
 
+    pub fn node_mut(&mut self, index: usize) -> Option<&mut NodeGene> {
+        self.node_genes.get_mut(index)
+    }
+
     pub fn connections(&self) -> &[ConnectionGene] {
         &self.connection_genes
+    }
+
+    pub fn connection_mut(&mut self, index: usize) -> Option<&mut ConnectionGene> {
+        self.connection_genes.get_mut(index)
     }
 
     fn calculate_node_order(
@@ -226,7 +235,7 @@ impl Genome {
         self.is_projecting(source, target)
     }
 
-    fn can_connect(&self, from: usize, to: usize) -> bool {
+    pub fn can_connect(&self, from: usize, to: usize) -> bool {
         let from_node = self.node_genes.get(from).unwrap();
         let to_node = self.node_genes.get(to).unwrap();
 
@@ -245,7 +254,7 @@ impl Genome {
         }
     }
 
-    fn add_connection(&mut self, from: usize, to: usize) -> Result<usize, ()> {
+    pub fn add_connection(&mut self, from: usize, to: usize) -> Result<usize, ()> {
         if !self.can_connect(from, to) {
             return Err(());
         }
@@ -264,7 +273,7 @@ impl Genome {
         Ok(self.connection_genes.len() - 1)
     }
 
-    fn add_many_connections(&mut self, params: &[(usize, usize)]) -> Vec<Result<usize, ()>> {
+    pub fn add_many_connections(&mut self, params: &[(usize, usize)]) -> Vec<Result<usize, ()>> {
         let results = params
             .iter()
             .map(|(from, to)| self.add_connection(*from, *to))
@@ -273,16 +282,16 @@ impl Genome {
         results
     }
 
-    fn disable_connection(&mut self, index: usize) {
+    pub fn disable_connection(&mut self, index: usize) {
         self.connection_genes.get_mut(index).unwrap().disabled = true;
     }
 
-    fn disable_many_connections(&mut self, indexes: &[usize]) {
+    pub fn disable_many_connections(&mut self, indexes: &[usize]) {
         indexes.iter().for_each(|i| self.disable_connection(*i));
     }
 
     /// Add a new hidden node to the genome
-    fn add_node(&mut self) -> usize {
+    pub fn add_node(&mut self) -> usize {
         let index = self.node_genes.len();
         self.node_genes.push(NodeGene::new(NodeKind::Hidden));
 
@@ -290,7 +299,7 @@ impl Genome {
     }
 
     pub fn mutate(&mut self, kind: &MutationKind) {
-        mutation::mutate(kind, self);
+        crate::mutations::mutate(kind, self);
     }
 }
 

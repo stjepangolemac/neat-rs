@@ -4,18 +4,22 @@ use rand::thread_rng;
 use rand::Rng;
 use rand_distr::StandardNormal;
 
-use super::{ActivationKind, Genome, NodeKind};
+use crate::activation::ActivationKind;
+use crate::genome::Genome;
+use crate::node::NodeKind;
 
 pub fn mutate(kind: &MutationKind, g: &mut Genome) {
+    use MutationKind::*;
+
     match kind {
-        MutationKind::AddConnection => add_connection(g),
-        MutationKind::RemoveConnection => disable_connection(g),
-        MutationKind::AddNode => add_node(g),
-        MutationKind::RemoveNode => remove_node(g),
-        MutationKind::ModifyWeight => change_weight(g),
-        MutationKind::ModifyBias => change_bias(g),
-        MutationKind::ModifyActivation => change_activation(g),
-        _ => panic!("Mutation kind is unknown"),
+        AddConnection => add_connection(g),
+        RemoveConnection => disable_connection(g),
+        AddNode => add_node(g),
+        RemoveNode => remove_node(g),
+        ModifyWeight => change_weight(g),
+        ModifyBias => change_bias(g),
+        ModifyActivation => change_activation(g),
+        ModifyAggregation => change_aggregation(g),
     };
 }
 
@@ -28,18 +32,21 @@ pub enum MutationKind {
     ModifyWeight,
     ModifyBias,
     ModifyActivation,
+    ModifyAggregation,
 }
 
 impl Distribution<MutationKind> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> MutationKind {
+        use MutationKind::*;
+
         match rng.gen_range(0, 7) {
-            0 => MutationKind::AddConnection,
-            1 => MutationKind::RemoveConnection,
-            2 => MutationKind::AddNode,
-            3 => MutationKind::RemoveNode,
-            4 => MutationKind::ModifyWeight,
-            5 => MutationKind::ModifyBias,
-            _ => MutationKind::ModifyActivation,
+            0 => AddConnection,
+            1 => RemoveConnection,
+            2 => AddNode,
+            3 => RemoveNode,
+            4 => ModifyWeight,
+            5 => ModifyBias,
+            _ => ModifyActivation,
         }
     }
 }
@@ -47,16 +54,16 @@ impl Distribution<MutationKind> for Standard {
 /// Adds a new random connection
 pub fn add_connection(g: &mut Genome) {
     let existing_connections: Vec<(usize, usize, bool)> = g
-        .connection_genes
+        .connections()
         .iter()
         .map(|c| (c.from, c.to, c.disabled))
         .collect();
 
-    let mut possible_connections: Vec<(usize, usize)> = (0..g.node_genes.len())
+    let mut possible_connections: Vec<(usize, usize)> = (0..g.nodes().len())
         .flat_map(|i| {
             let mut inner = vec![];
 
-            (0..g.node_genes.len()).for_each(|j| {
+            (0..g.nodes().len()).for_each(|j| {
                 if i != j {
                     if !existing_connections.contains(&(i, j, false)) {
                         inner.push((i, j));
@@ -94,7 +101,7 @@ pub fn add_connection(g: &mut Genome) {
 /// Removes a random connection if it's not the only one
 fn disable_connection(g: &mut Genome) {
     let eligible_indexes: Vec<usize> = g
-        .connection_genes
+        .connections()
         .iter()
         .enumerate()
         .filter(|(_, c)| {
@@ -107,13 +114,13 @@ fn disable_connection(g: &mut Genome) {
 
             // Number of outgoing connections for the `from` node
             let from_connections_count = g
-                .connection_genes
+                .connections()
                 .iter()
                 .filter(|c| c.from == from_index && !c.disabled)
                 .count();
             // Number of incoming connections for the `to` node
             let to_connections_count = g
-                .connection_genes
+                .connections()
                 .iter()
                 .filter(|c| c.to == to_index && !c.disabled)
                 .count();
@@ -140,7 +147,7 @@ pub fn add_node(g: &mut Genome) {
 
     // Only enabled connections can be disabled
     let enabled_connections: Vec<usize> = g
-        .connection_genes
+        .connections()
         .iter()
         .enumerate()
         .filter(|(_, c)| !c.disabled)
@@ -152,7 +159,7 @@ pub fn add_node(g: &mut Genome) {
         let picked_index = enabled_connections
             .get(random_enabled_connection_index)
             .unwrap();
-        let picked_connection = g.connection_genes.get(*picked_index).unwrap();
+        let picked_connection = g.connections().get(*picked_index).unwrap();
 
         (
             picked_index,
@@ -168,23 +175,23 @@ pub fn add_node(g: &mut Genome) {
     g.add_connection(new_node_index, picked_to).unwrap();
 
     // Reuse the weight from the removed connection
-    g.connection_genes.get_mut(connection_index).unwrap().weight = picked_weight;
+    g.connection_mut(connection_index).unwrap().weight = picked_weight;
 }
 
 /// Removes a random hidden node from the genome and rewires connected nodes
 fn remove_node(g: &mut Genome) {
     let hidden_nodes: Vec<usize> = g
-        .node_genes
+        .nodes()
         .iter()
         .enumerate()
         .filter(|(i, n)| {
             let incoming_count = g
-                .connection_genes
+                .connections()
                 .iter()
                 .filter(|c| c.to == *i && !c.disabled)
                 .count();
             let outgoing_count = g
-                .connection_genes
+                .connections()
                 .iter()
                 .filter(|c| c.from == *i && !c.disabled)
                 .count();
@@ -203,14 +210,14 @@ fn remove_node(g: &mut Genome) {
         .unwrap();
 
     let incoming_connections_and_from_indexes: Vec<(usize, usize)> = g
-        .connection_genes
+        .connections()
         .iter()
         .enumerate()
         .filter(|(_, c)| c.to == *picked_node_index && !c.disabled)
         .map(|(i, c)| (i, c.from))
         .collect();
     let outgoing_connections_and_to_indexes: Vec<(usize, usize)> = g
-        .connection_genes
+        .connections()
         .iter()
         .enumerate()
         .filter(|(_, c)| c.from == *picked_node_index && !c.disabled)
@@ -226,7 +233,7 @@ fn remove_node(g: &mut Genome) {
                 .collect::<Vec<(usize, usize)>>()
         })
         .filter(|(from, to)| {
-            g.connection_genes
+            g.connections()
                 .iter()
                 .find(|c| c.from == *from && c.to == *to && !c.disabled)
                 .is_none()
@@ -236,7 +243,7 @@ fn remove_node(g: &mut Genome) {
     g.add_many_connections(&new_from_to_pairs);
 
     let connection_indexes_to_delete: Vec<usize> = g
-        .connection_genes
+        .connections()
         .iter()
         .enumerate()
         .filter(|(_, c)| c.from == *picked_node_index || c.to == *picked_node_index)
@@ -248,8 +255,8 @@ fn remove_node(g: &mut Genome) {
 
 /// Changes the weight of a random connection
 fn change_weight(g: &mut Genome) {
-    let index = random::<usize>() % g.connection_genes.len();
-    let picked_connection = g.connection_genes.get_mut(index).unwrap();
+    let index = random::<usize>() % g.connections().len();
+    let picked_connection = g.connection_mut(index).unwrap();
 
     let new_weight = if random::<f64>() < 0.1 {
         picked_connection.weight + thread_rng().sample::<f64, StandardNormal>(StandardNormal)
@@ -263,7 +270,7 @@ fn change_weight(g: &mut Genome) {
 /// Changes the bias of a random non input node
 fn change_bias(g: &mut Genome) {
     let eligible_indexes: Vec<usize> = g
-        .node_genes
+        .nodes()
         .iter()
         .enumerate()
         .filter(|(_, n)| !matches!(n.kind, NodeKind::Input))
@@ -273,7 +280,7 @@ fn change_bias(g: &mut Genome) {
     let index = eligible_indexes
         .get(random::<usize>() % eligible_indexes.len())
         .unwrap();
-    let picked_node = g.node_genes.get_mut(*index).unwrap();
+    let picked_node = g.node_mut(*index).unwrap();
 
     let new_bias = if random::<f64>() < 0.1 {
         picked_node.bias + thread_rng().sample::<f64, StandardNormal>(StandardNormal)
@@ -287,7 +294,7 @@ fn change_bias(g: &mut Genome) {
 /// Changes the activation function of a random non input node
 fn change_activation(g: &mut Genome) {
     let eligible_indexes: Vec<usize> = g
-        .node_genes
+        .nodes()
         .iter()
         .enumerate()
         .filter(|(_, n)| !matches!(n.kind, NodeKind::Input))
@@ -297,9 +304,26 @@ fn change_activation(g: &mut Genome) {
     let index = eligible_indexes
         .get(random::<usize>() % eligible_indexes.len())
         .unwrap();
-    let picked_node = g.node_genes.get_mut(*index).unwrap();
+    let picked_node = g.node_mut(*index).unwrap();
 
     picked_node.activation = random::<ActivationKind>();
+}
+
+fn change_aggregation(g: &mut Genome) {
+    let eligible_indexes: Vec<usize> = g
+        .nodes()
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| !matches!(n.kind, NodeKind::Input))
+        .map(|(i, _)| i)
+        .collect();
+
+    let index = eligible_indexes
+        .get(random::<usize>() % eligible_indexes.len())
+        .unwrap();
+    let picked_node = g.node_mut(*index).unwrap();
+
+    picked_node.aggregation = random();
 }
 
 #[cfg(test)]
@@ -314,9 +338,9 @@ mod tests {
         g.add_connection(0, 3).unwrap();
         g.add_connection(3, 2).unwrap();
 
-        assert!(!g.connection_genes.iter().any(|c| c.from == 3 && c.to == 1));
+        assert!(!g.connections().iter().any(|c| c.from == 3 && c.to == 1));
         add_connection(&mut g);
-        assert!(g.connection_genes.iter().any(|c| c.from == 3 && c.to == 1));
+        assert!(g.connections().iter().any(|c| c.from == 3 && c.to == 1));
     }
 
     #[test]
@@ -328,35 +352,35 @@ mod tests {
         g.add_connection(3, 2).unwrap();
 
         // This will add the last missing connection
-        assert_eq!(g.connection_genes.len(), 4);
+        assert_eq!(g.connections().len(), 4);
         add_connection(&mut g);
-        assert_eq!(g.connection_genes.len(), 5);
+        assert_eq!(g.connections().len(), 5);
 
         // There should be no new connections
         add_connection(&mut g);
-        assert_eq!(g.connection_genes.len(), 5);
+        assert_eq!(g.connections().len(), 5);
     }
 
     #[test]
     fn remove_connection_doesnt_remove_last_connection_of_a_node() {
         let mut g = Genome::new(1, 2);
-        assert_eq!(g.connection_genes.iter().filter(|c| !c.disabled).count(), 2);
+        assert_eq!(g.connections().iter().filter(|c| !c.disabled).count(), 2);
 
         disable_connection(&mut g);
-        assert_eq!(g.connection_genes.iter().filter(|c| !c.disabled).count(), 2);
+        assert_eq!(g.connections().iter().filter(|c| !c.disabled).count(), 2);
     }
 
     #[test]
     fn add_node_doesnt_change_existing_connections() {
         let mut g = Genome::new(1, 1);
-        let original_connections = g.connection_genes.clone();
+        let original_connections = g.connections().to_vec();
 
         add_node(&mut g);
 
         let original_connections_not_modified = original_connections
             .iter()
             .filter(|oc| {
-                g.connection_genes
+                g.connections()
                     .iter()
                     .any(|c| c.from == oc.from && c.to == oc.to && c.disabled == oc.disabled)
             })
@@ -373,13 +397,13 @@ mod tests {
     #[test]
     fn remove_node_doesnt_mess_up_the_connections() {
         let mut g = Genome::new(1, 1);
-        let connection_enabled_initially = !g.connection_genes.first().unwrap().disabled;
+        let connection_enabled_initially = !g.connections().first().unwrap().disabled;
 
         add_node(&mut g);
-        let connection_disabled_after_add = g.connection_genes.first().unwrap().disabled;
+        let connection_disabled_after_add = g.connections().first().unwrap().disabled;
 
         remove_node(&mut g);
-        let connection_enabled_after_remove = !g.connection_genes.first().unwrap().disabled;
+        let connection_enabled_after_remove = !g.connections().first().unwrap().disabled;
 
         assert!(connection_enabled_initially);
         assert!(connection_disabled_after_add);
@@ -390,15 +414,15 @@ mod tests {
     fn change_bias_doesnt_change_input_nodes() {
         let mut g = Genome::new(1, 1);
 
-        let input_bias = g.node_genes.get(0).unwrap().bias;
-        let output_bias = g.node_genes.get(1).unwrap().bias;
+        let input_bias = g.nodes().get(0).unwrap().bias;
+        let output_bias = g.nodes().get(1).unwrap().bias;
 
         for _ in 0..10 {
             change_bias(&mut g);
         }
 
-        let new_input_bias = g.node_genes.get(0).unwrap().bias;
-        let new_output_bias = g.node_genes.get(1).unwrap().bias;
+        let new_input_bias = g.nodes().get(0).unwrap().bias;
+        let new_output_bias = g.nodes().get(1).unwrap().bias;
 
         assert!((input_bias - new_input_bias).abs() < f64::EPSILON);
         assert!((output_bias - new_output_bias).abs() > f64::EPSILON);
@@ -408,8 +432,8 @@ mod tests {
     fn change_activation_doesnt_change_input_nodes() {
         let mut g = Genome::new(1, 1);
 
-        let i_activation = g.node_genes.get(0).unwrap().activation.clone();
-        let o_activation = g.node_genes.get(1).unwrap().activation.clone();
+        let i_activation = g.nodes().get(0).unwrap().activation.clone();
+        let o_activation = g.nodes().get(1).unwrap().activation.clone();
 
         let mut new_i_activations = vec![];
         let mut new_o_activations = vec![];
@@ -417,8 +441,8 @@ mod tests {
         for _ in 0..10 {
             change_activation(&mut g);
 
-            new_i_activations.push(g.node_genes.get(0).unwrap().activation.clone());
-            new_o_activations.push(g.node_genes.get(1).unwrap().activation.clone());
+            new_i_activations.push(g.nodes().get(0).unwrap().activation.clone());
+            new_o_activations.push(g.nodes().get(1).unwrap().activation.clone());
         }
 
         assert!(new_i_activations.iter().all(|a| *a == i_activation));
@@ -449,7 +473,7 @@ mod tests {
 
             times.get_mut(&kind).unwrap().push(duration);
 
-            if g.connection_genes.iter().all(|c| c.disabled) {
+            if g.connections().iter().all(|c| c.disabled) {
                 panic!("All connections disabled, happened after {:?}", kind);
             }
 

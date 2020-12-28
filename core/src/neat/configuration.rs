@@ -1,6 +1,6 @@
 use std::default::Default;
 
-use crate::genome::mutation::MutationKind;
+use crate::mutations::MutationKind;
 
 /// Holds configuration options of the whole NEAT process
 #[derive(Debug)]
@@ -68,5 +68,6 @@ pub fn default_mutation_kinds() -> Vec<(MutationKind, usize)> {
         (ModifyWeight, 20),
         (ModifyBias, 20),
         (ModifyActivation, 15),
+        (ModifyAggregation, 15),
     ]
 }

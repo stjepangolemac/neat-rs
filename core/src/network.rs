@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use crate::activation::*;
+use crate::aggregations::aggregate;
 use crate::connection::*;
 use crate::genome::Genome;
 use crate::node::*;
@@ -36,17 +35,21 @@ impl Network {
             if matches!(node.kind, NodeKind::Input) {
                 self.nodes.get_mut(*i).unwrap().value = Some(*inputs.get(*i).unwrap());
             } else {
-                let pre_activation =
-                    self.connections
-                        .iter()
-                        .filter(|c| c.to == *i)
-                        .fold(0., |sum, c| {
-                            let incoming_value = self.nodes.get(c.from).unwrap().value.unwrap();
-                            sum + incoming_value * c.weight
-                        });
+                let components: Vec<f64> = self
+                    .connections
+                    .iter()
+                    .filter(|c| c.to == *i)
+                    .map(|c| {
+                        let incoming_value = self.nodes.get(c.from).unwrap().value.unwrap();
+                        incoming_value * c.weight
+                    })
+                    .collect();
+
+                let aggregated = aggregate(&node.aggregation, &components);
+                let aggregated_with_bias = aggregated + node.bias;
 
                 self.nodes.get_mut(*i).unwrap().value =
-                    Some(activate(pre_activation, &node.activation));
+                    Some(activate(aggregated_with_bias, &node.activation));
             }
         }
 
@@ -139,12 +142,12 @@ impl Network {
 
 impl From<&Genome> for Network {
     fn from(g: &Genome) -> Self {
-        let nodes: Vec<Node> = g.nodes().iter().map(Node::from).collect();
+        let nodes: Vec<Node> = g.nodes().iter().map(From::from).collect();
         let connections: Vec<Connection> = g
             .connections()
             .iter()
             .filter(|c| !c.disabled)
-            .map(Connection::from)
+            .map(From::from)
             .collect();
 
         Network {

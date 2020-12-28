@@ -1,11 +1,10 @@
 use rand::random;
 use rayon::prelude::*;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::genome::mutation::MutationKind;
 use crate::genome::{crossover, Genome};
+use crate::mutations::MutationKind;
 use crate::network::Network;
 pub use configuration::Configuration;
 use reporter::Reporter;
@@ -319,7 +318,7 @@ mod tests {
 
         system.set_configuration(Configuration {
             population_size: 100,
-            max_generations: 500,
+            max_generations: 5000,
             fitness_goal: Some(0.934), // Perfect score for these settings
             node_cost: 0.01,
             connection_cost: 0.005,
@@ -340,7 +339,7 @@ mod tests {
         //     dbg!(i, o);
         // }
 
-        // dbg!(&network, &fitness);
+        dbg!(&network, &fitness);
 
         println!(
             "Found network with {} nodes and {} connections, of fitness {}",

@@ -1,5 +1,6 @@
 use crate::activation::ActivationKind;
-use crate::genome::genes::NodeGene;
+use crate::aggregations::Aggregation;
+use crate::genome::node::NodeGene;
 
 #[derive(Debug, Clone, PartialEq, Hash)]
 pub enum NodeKind {
@@ -12,6 +13,7 @@ pub enum NodeKind {
 #[derive(Debug)]
 pub struct Node {
     pub kind: NodeKind,
+    pub aggregation: Aggregation,
     pub activation: ActivationKind,
     pub bias: f64,
     pub value: Option<f64>,
@@ -24,6 +26,7 @@ impl From<&NodeGene> for Node {
             activation: g.activation.clone(),
             bias: g.bias,
             value: None,
+            aggregation: g.aggregation.clone(),
         }
     }
 }

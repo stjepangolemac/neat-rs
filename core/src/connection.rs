@@ -1,4 +1,4 @@
-use crate::genome::genes::ConnectionGene;
+use crate::genome::connection::ConnectionGene;
 
 #[derive(Debug)]
 pub struct Connection {

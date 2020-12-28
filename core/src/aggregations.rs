@@ -17,6 +17,7 @@ pub fn aggregate(kind: &Aggregation, components: &[f64]) -> f64 {
     func(components)
 }
 
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub enum Aggregation {
     Product,
     Sum,
@@ -75,6 +76,10 @@ fn maxabs(components: &[f64]) -> f64 {
 fn median(components: &[f64]) -> f64 {
     use std::cmp::Ordering;
 
+    if components.is_empty() {
+        return 0.;
+    }
+
     let mut sorted = components.to_vec();
     sorted.sort_by(|a, b| {
         if a < b {
@@ -85,7 +90,8 @@ fn median(components: &[f64]) -> f64 {
     });
 
     let length = sorted.len();
-    let median_index = if length % 2 == 0 {
+    let is_length_even = length % 2 == 0;
+    let median_index = if is_length_even {
         length / 2 - 1
     } else {
         length / 2

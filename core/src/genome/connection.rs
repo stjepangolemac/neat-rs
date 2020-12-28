@@ -5,8 +5,8 @@ use std::hash::{Hash, Hasher};
 pub struct ConnectionGene {
     pub from: usize,
     pub to: usize,
-    pub disabled: bool,
     pub weight: f64,
+    pub disabled: bool,
 }
 
 impl ConnectionGene {
