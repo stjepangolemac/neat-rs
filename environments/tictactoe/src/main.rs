@@ -1,10 +1,7 @@
 use rand::random;
 
 use neat_core::{Configuration, Network, NEAT};
-
-use generic::*;
-
-mod generic;
+use neat_environment::Environment;
 
 #[derive(Clone, Copy, Debug)]
 enum Mark {

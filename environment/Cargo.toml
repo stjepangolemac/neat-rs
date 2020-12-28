@@ -1,0 +1,5 @@
+[package]
+name = "neat-environment"
+version = "0.1.0"
+authors = ["Stjepan Golemac <stjepan.golemac@gmail.com>"]
+edition = "2018"
