@@ -23,6 +23,9 @@ pub struct Configuration {
     /// The ratio of reproductions by crossover
     pub crossover_ratio: f64,
 
+    /// The mutation rate of offspring
+    pub mutation_rate: f64,
+
     /// The types of mutations available and their sampling weights
     pub mutation_kinds: Vec<(MutationKind, usize)>,
 
@@ -48,6 +51,7 @@ impl Default for Configuration {
             node_cost: 0.,
             connection_cost: 0.,
             crossover_ratio: 0.5,
+            mutation_rate: 0.25,
             mutation_kinds: default_mutation_kinds(),
             fitness_goal: None,
             speciation_disjoint_coefficient: 1.,

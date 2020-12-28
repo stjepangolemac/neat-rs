@@ -70,100 +70,62 @@ impl NEAT {
                 .cloned()
                 .collect();
             let non_elites = all_genomes;
-            // let non_elites: Vec<&Genome> = all_genomes.iter().skip(elites_count).cloned().collect();
 
             let mut offspring = vec![];
 
             let population_size = self.configuration.borrow().population_size;
             let crossover_ratio = self.configuration.borrow().crossover_ratio;
+            let mutation_rate = self.configuration.borrow().mutation_rate;
 
             while (elites.len() + offspring.len()) < population_size {
-                let reproduction_data: Vec<(
-                    Option<(Genome, f64, Genome, f64)>,
-                    Option<(Genome, MutationKind)>,
-                )> = (0..population_size - (elites.len() + offspring.len()))
+                let crossover_data: Vec<(&Genome, f64, &Genome, f64)> = (0..population_size
+                    - (elites.len() + offspring.len()))
                     .map(|_| {
-                        if random::<f64>() < crossover_ratio {
-                            // Crossover
-                            let parent_index_a = random::<usize>() % non_elites.len();
-                            let parent_a = non_elites.get(parent_index_a).unwrap();
+                        let parent_index_a = random::<usize>() % non_elites.len();
+                        let parent_a = non_elites.get(parent_index_a).unwrap();
 
-                            let parent_fitness_a =
-                                self.genomes.fitnesses().get(&parent_index_a).unwrap();
+                        let parent_fitness_a =
+                            self.genomes.fitnesses().get(&parent_index_a).unwrap();
 
-                            let parent_index_b = random::<usize>() % non_elites.len();
-                            let parent_b = non_elites.get(parent_index_b).unwrap();
-                            let parent_fitness_b =
-                                self.genomes.fitnesses().get(&parent_index_b).unwrap();
+                        let parent_index_b = random::<usize>() % non_elites.len();
+                        let parent_b = non_elites.get(parent_index_b).unwrap();
+                        let parent_fitness_b =
+                            self.genomes.fitnesses().get(&parent_index_b).unwrap();
 
-                            (
-                                Some((
-                                    (*parent_a).clone(),
-                                    *parent_fitness_a,
-                                    (*parent_b).clone(),
-                                    *parent_fitness_b,
-                                )),
-                                None,
-                            )
+                        (*parent_a, *parent_fitness_a, *parent_b, *parent_fitness_b)
+                    })
+                    .collect();
+
+                let mut children: Vec<Genome> = crossover_data
+                    .par_iter()
+                    .map(|(parent_a, fitness_a, parent_b, fitness_b)| {
+                        crossover((parent_a, *fitness_a), (parent_b, *fitness_b))
+                    })
+                    .filter(|maybe_genome| maybe_genome.is_some())
+                    .map(|maybe_genome| maybe_genome.unwrap())
+                    .collect();
+
+                let mutations_for_children: Vec<Option<MutationKind>> = children
+                    .iter()
+                    .map(|_| {
+                        if random::<f64>() < mutation_rate {
+                            Some(self.pick_mutation())
                         } else {
-                            // Mutation
-                            let parent_index = random::<usize>() % non_elites.len();
-                            let parent: &Genome = non_elites.get(parent_index).unwrap();
-
-                            let kind = &self.pick_mutation();
-
-                            (None, Some((parent.clone(), kind.clone())))
+                            None
                         }
                     })
                     .collect();
 
-                let mut children: Vec<Genome> = reproduction_data
-                    .into_par_iter()
-                    .map(|data| match data {
-                        // Crossover
-                        (Some((parent_a, fitness_a, parent_b, fitness_b)), None) => {
-                            crossover((&parent_a, fitness_a), (&parent_b, fitness_b))
+                children
+                    .par_iter_mut()
+                    .zip(mutations_for_children)
+                    .for_each(|(child, maybe_mutation)| {
+                        if let Some(mutation) = maybe_mutation {
+                            child.mutate(&mutation);
                         }
-                        // Mutation
-                        (None, Some((mut child, mutation_kind))) => {
-                            child.mutate(&mutation_kind);
-
-                            Some(child)
-                        }
-                        _ => panic!("No data for crossover or mutation"),
-                    })
-                    .filter(|maybe_child| maybe_child.is_some())
-                    .map(|maybe_child| maybe_child.unwrap())
-                    .collect();
+                    });
 
                 offspring.append(&mut children);
-
-                // let maybe_child = if random::<f64>() < crossover_ratio {
-                //     // Crossover
-                //     let parent_index_a = random::<usize>() % non_elites.len();
-                //     let parent_a = non_elites.get(parent_index_a).unwrap();
-
-                //     let parent_fitness_a = self.genomes.fitnesses().get(&parent_index_a).unwrap();
-
-                //     let parent_index_b = random::<usize>() % non_elites.len();
-                //     let parent_b = non_elites.get(parent_index_b).unwrap();
-                //     let parent_fitness_b = self.genomes.fitnesses().get(&parent_index_b).unwrap();
-
-                //     crossover((parent_a, *parent_fitness_a), (parent_b, *parent_fitness_b))
-                // } else {
-                //     // Mutation
-                //     let parent_index = random::<usize>() % non_elites.len();
-                //     let parent: &Genome = non_elites.get(parent_index).unwrap();
-
-                //     let mut child = parent.clone();
-                //     child.mutate(&self.pick_mutation());
-
-                //     Some(child)
-                // };
-
-                // if let Some(child) = maybe_child {
-                //     offspring.push(child);
-                // }
             }
 
             let mut new_genomes = vec![];
