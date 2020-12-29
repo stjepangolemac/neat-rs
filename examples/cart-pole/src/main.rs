@@ -1,10 +1,13 @@
 use neat_core::{Configuration, NEAT};
 use neat_environment_cart_pole::{CartPole, Environment};
+use neat_export::to_file;
 
-fn main() {
+mod gui;
+
+fn train() {
     let mut system = NEAT::new(4, 1, |network| {
         let num_simulations = 10;
-        let max_steps = 200;
+        let max_steps = 1000;
         let mut env = CartPole::new();
 
         let mut steps_done = 0;
@@ -29,13 +32,12 @@ fn main() {
             fitness += env.fitness();
         }
 
-        // dbg!(steps_done / num_simulations);
-
         fitness / num_simulations as f64
     });
 
     system.set_configuration(Configuration {
-        population_size: 150,
+        population_size: 50,
+        max_generations: 100,
         node_cost: 1.,
         connection_cost: 1.,
         compatibility_threshold: 1.5,
@@ -58,4 +60,18 @@ fn main() {
         network.connections.len(),
         fitness
     );
+
+    to_file("network.bin", &network);
+}
+
+fn main() {
+    let param: String = std::env::args().skip(1).take(1).collect();
+
+    if param == "train" {
+        train();
+    };
+
+    if param == "visualize" {
+        gui::visualize();
+    };
 }

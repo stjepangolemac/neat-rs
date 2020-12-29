@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 neat-core = { path = "../../core" }
 neat-environment-cart-pole = { path = "../../environments/cart-pole" }
+neat-export = { path = "../../export" }
+nannou = "0.15.0"

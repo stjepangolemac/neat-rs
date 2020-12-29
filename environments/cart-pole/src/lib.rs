@@ -1,4 +1,4 @@
-use rand::{thread_rng, Rng};
+use rand::{random, thread_rng, Rng};
 
 pub use neat_environment::Environment;
 use utils::*;
@@ -6,14 +6,14 @@ use utils::*;
 mod utils;
 
 pub struct CartPoleConfiguration {
-    gravity: f64,
-    mass_cart: f64,
-    mass_pole: f64,
-    length_pole: f64,
-    time_step: f64,
+    pub gravity: f64,
+    pub mass_cart: f64,
+    pub mass_pole: f64,
+    pub length_pole: f64,
+    pub time_step: f64,
 
-    limit_position: f64,
-    limit_angle_radians: f64,
+    pub limit_position: f64,
+    pub limit_angle_radians: f64,
 }
 
 impl Default for CartPoleConfiguration {
@@ -23,7 +23,7 @@ impl Default for CartPoleConfiguration {
             mass_cart: 1.0,
             mass_pole: 0.1,
             length_pole: 0.5,
-            time_step: 0.01,
+            time_step: 1. / 60.,
 
             limit_position: 2.4,
             limit_angle_radians: to_radians(45.),
@@ -32,7 +32,7 @@ impl Default for CartPoleConfiguration {
 }
 
 pub struct CartPole {
-    configuration: CartPoleConfiguration,
+    pub configuration: CartPoleConfiguration,
 
     x: f64,
     theta: f64,
@@ -79,6 +79,10 @@ impl CartPole {
         input * 10.
     }
 
+    fn continuous_noisy_actuator_force(input: f64) -> f64 {
+        (input + random::<f64>() * 0.75) * 10.
+    }
+
     fn measure_fitness(&mut self) {
         let x_component = f64::max(0., self.configuration.limit_position - self.x.abs());
         let theta_component = f64::max(
@@ -86,7 +90,9 @@ impl CartPole {
             self.configuration.limit_angle_radians - self.theta.abs(),
         );
 
-        self.fitness += 1. - x_component * theta_component;
+        let step_fitness = 1. - x_component * theta_component;
+
+        self.fitness += step_fitness.powi(2);
     }
 
     fn check_finished(&mut self) {
@@ -95,6 +101,10 @@ impl CartPole {
         {
             self.finished = true;
         }
+    }
+
+    pub fn apply_force_to_pole(&mut self, force: f64) {
+        self.dtheta += force;
     }
 }
 
