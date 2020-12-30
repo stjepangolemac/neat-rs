@@ -143,8 +143,8 @@ impl Environment for TicTacToe {
     type State = Field;
     type Input = usize;
 
-    fn state(&self) -> &Self::State {
-        &self.field
+    fn state(&self) -> Self::State {
+        self.field
     }
 
     fn step(&mut self, input: Self::Input) -> Result<(), ()> {
