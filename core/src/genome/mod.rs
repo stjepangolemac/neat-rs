@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::activation::ActivationKind;
 use crate::mutations::MutationKind;
 use crate::node::NodeKind;
 pub use connection::ConnectionGene;
@@ -10,6 +9,8 @@ pub use node::NodeGene;
 pub mod connection;
 pub mod crossover;
 pub mod node;
+
+pub type GenomeId = u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Genome {
@@ -49,6 +50,16 @@ impl Genome {
             connection_genes: vec![],
             node_genes: vec![],
         }
+    }
+
+    pub fn id(&self) -> GenomeId {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+
+        hasher.finish()
     }
 
     pub fn input_count(&self) -> usize {

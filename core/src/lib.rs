@@ -7,6 +7,7 @@ mod neat;
 mod network;
 mod node;
 pub mod reporting;
+mod speciation;
 
 pub use genome::*;
 pub use neat::*;

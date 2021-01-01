@@ -4,22 +4,24 @@ use std::rc::Rc;
 
 use super::configuration::Configuration;
 use crate::genome::ConnectionGene;
-use crate::genome::Genome;
+use crate::genome::{Genome, GenomeId};
 
 /// Holds all genomes and species, does the process of speciation
 #[derive(Debug)]
 pub struct GenomeBank {
     configuration: Rc<RefCell<Configuration>>,
-    genomes: Vec<Genome>,
-    fitnesses: HashMap<usize, f64>,
-    species: HashMap<usize, Vec<usize>>,
+    genomes: HashMap<GenomeId, Genome>,
+    previous_genomes: HashMap<GenomeId, Genome>,
+    fitnesses: HashMap<GenomeId, f64>,
+    species: HashMap<usize, Vec<GenomeId>>,
 }
 
 impl GenomeBank {
     pub fn new(configuration: Rc<RefCell<Configuration>>) -> Self {
         GenomeBank {
             configuration,
-            genomes: vec![],
+            genomes: HashMap::new(),
+            previous_genomes: HashMap::new(),
             fitnesses: HashMap::new(),
             species: HashMap::new(),
         }
@@ -27,34 +29,44 @@ impl GenomeBank {
 
     /// Adds a new genome
     pub fn add_genome(&mut self, genome: Genome) {
-        self.genomes.push(genome);
+        self.genomes.insert(genome.id(), genome);
     }
 
-    pub fn replace_genomes(&mut self, genomes: Vec<Genome>) {
-        self.genomes = genomes;
+    /// Clear genomes
+    pub fn clear(&mut self) {
+        let mut new_bank = GenomeBank::new(self.configuration.clone());
+        new_bank.previous_genomes = self.genomes.clone();
+
+        *self = new_bank;
     }
 
     /// Returns a reference to the genomes
-    pub fn genomes(&self) -> &[Genome] {
+    pub fn genomes(&self) -> &HashMap<GenomeId, Genome> {
         &self.genomes
     }
 
+    pub fn previous_genomes(&self) -> &HashMap<GenomeId, Genome> {
+        &self.previous_genomes
+    }
+
     /// Tracks the fitness of a particular genome
-    pub fn mark_fitness(&mut self, tested_genome_index: usize, fitness: f64) {
-        self.fitnesses.insert(tested_genome_index, fitness);
+    pub fn mark_fitness(&mut self, genome_id: GenomeId, fitness: f64) {
+        self.fitnesses.insert(genome_id, fitness);
     }
 
     /// Returns a reference to the fitnesses
-    pub fn fitnesses(&self) -> &HashMap<usize, f64> {
+    pub fn fitnesses(&self) -> &HashMap<GenomeId, f64> {
         &self.fitnesses
     }
 
     /// Checks that all genomes have had their fitness measured
     fn all_genomes_tested(&self) -> bool {
-        (0..self.genomes.len()).all(|index| self.fitnesses.get(&index).is_some())
+        self.genomes
+            .iter()
+            .all(|(genome_id, _)| self.fitnesses.get(genome_id).is_some())
     }
 
-    pub fn species(&self) -> &HashMap<usize, Vec<usize>> {
+    pub fn species(&self) -> &HashMap<usize, Vec<GenomeId>> {
         &self.species
     }
 
@@ -62,7 +74,7 @@ impl GenomeBank {
     pub fn speciate(&mut self) {
         self.species.clear();
 
-        for (genome_id, genome) in self.genomes.iter().enumerate() {
+        for (genome_id, genome) in self.genomes.iter() {
             let maybe_species = self
                 .species
                 .iter()
@@ -70,7 +82,7 @@ impl GenomeBank {
                     // Paper says checking the first one is enough
                     let maybe_other_genome = species_genome_ids
                         .first()
-                        .and_then(|other_genome_index| self.genomes.get(*other_genome_index));
+                        .and_then(|other_genome_index| self.genomes.get(other_genome_index));
 
                     if let Some(other_genome) = maybe_other_genome {
                         self.are_genomes_related(genome, other_genome)
@@ -82,9 +94,9 @@ impl GenomeBank {
                 .cloned();
 
             if let Some(species_id) = maybe_species {
-                self.species.get_mut(&species_id).unwrap().push(genome_id);
+                self.species.get_mut(&species_id).unwrap().push(*genome_id);
             } else {
-                self.species.insert(self.species.len(), vec![genome_id]);
+                self.species.insert(self.species.len(), vec![*genome_id]);
             }
         }
     }
@@ -207,15 +219,15 @@ impl GenomeBank {
         distance <= compatibility_threshold
     }
 
-    pub fn species_size_for(&self, genome_index: usize) -> usize {
+    pub fn species_size_for(&self, genome_id: GenomeId) -> usize {
         self.species
             .iter()
-            .find(|(_, genome_indexes)| genome_indexes.contains(&genome_index))
+            .find(|(_, genome_indexes)| genome_indexes.contains(&genome_id))
             .map(|(_, genome_indexes)| genome_indexes.len())
             .unwrap()
     }
 
-    pub fn adjusted_fitnesses(&self) -> Vec<f64> {
+    pub fn adjusted_fitnesses(&self) -> HashMap<GenomeId, f64> {
         let (node_cost, connection_cost) = {
             let conf = self.configuration.borrow();
 
@@ -224,11 +236,10 @@ impl GenomeBank {
 
         self.genomes
             .iter()
-            .enumerate()
-            .map(|(index, genome)| {
+            .map(|(genome_id, genome)| {
                 let fitness = self
                     .fitnesses
-                    .get(&index)
+                    .get(&genome_id)
                     .expect("Fitness of genome not marked");
 
                 let genome_node_cost = genome.nodes().len() as f64 * node_cost;
@@ -238,11 +249,14 @@ impl GenomeBank {
                     .species
                     .iter()
                     .map(|(_, species_genome_ids)| species_genome_ids)
-                    .find(|species_genome_ids| species_genome_ids.contains(&index))
+                    .find(|species_genome_ids| species_genome_ids.contains(&genome_id))
                     .unwrap()
                     .len();
 
-                (fitness - genome_node_cost - genome_connection_cost) / related_genome_count as f64
+                let adjusted_fitness = (fitness - genome_node_cost - genome_connection_cost)
+                    / related_genome_count as f64;
+
+                (*genome_id, adjusted_fitness)
             })
             .collect()
     }
@@ -267,9 +281,9 @@ mod tests {
         let mut bank = GenomeBank::new(configuration);
 
         let genome = Genome::new(1, 1);
-        bank.add_genome(genome);
+        bank.add_genome(genome.clone());
 
-        bank.mark_fitness(0, 1337.);
+        bank.mark_fitness(genome.id(), 1337.);
     }
 
     #[test]
@@ -277,13 +291,16 @@ mod tests {
         let configuration: Rc<RefCell<Configuration>> = Default::default();
         let mut bank = GenomeBank::new(configuration);
 
-        bank.add_genome(Genome::new(1, 1));
-        bank.add_genome(Genome::new(1, 1));
+        let genome_first = Genome::new(1, 1);
+        let genome_second = Genome::new(1, 1);
 
-        bank.mark_fitness(0, 1337.);
+        bank.add_genome(genome_first.clone());
+        bank.add_genome(genome_second.clone());
+
+        bank.mark_fitness(genome_first.id(), 1337.);
         assert!(!bank.all_genomes_tested());
 
-        bank.mark_fitness(1, 1338.);
+        bank.mark_fitness(genome_second.id(), 1338.);
         assert!(bank.all_genomes_tested());
     }
 
@@ -293,14 +310,15 @@ mod tests {
         let mut bank = GenomeBank::new(configuration);
 
         let genome = Genome::new(1, 1);
+        let genome_copy = genome.clone();
 
         bank.add_genome(genome.clone());
-        bank.add_genome(genome);
+        bank.add_genome(genome_copy.clone());
 
         assert_eq!(
             bank.are_genomes_related(
-                bank.genomes().get(0).unwrap(),
-                bank.genomes().get(1).unwrap()
+                bank.genomes().get(&genome.id()).unwrap(),
+                bank.genomes().get(&genome_copy.id()).unwrap()
             ),
             true
         );
@@ -314,13 +332,16 @@ mod tests {
         }));
         let mut bank = GenomeBank::new(configuration);
 
-        bank.add_genome(Genome::new(1, 1));
-        bank.add_genome(Genome::new(1, 1));
+        let genome_first = Genome::new(1, 1);
+        let genome_second = Genome::new(1, 1);
+
+        bank.add_genome(genome_first.clone());
+        bank.add_genome(genome_second.clone());
 
         assert_eq!(
             bank.are_genomes_related(
-                bank.genomes().get(0).unwrap(),
-                bank.genomes().get(1).unwrap()
+                bank.genomes().get(&genome_first.id()).unwrap(),
+                bank.genomes().get(&genome_second.id()).unwrap()
             ),
             false
         );
@@ -359,38 +380,5 @@ mod tests {
 
         assert_eq!(bank.species.get(&0).unwrap().len(), 2);
         assert_eq!(bank.species.get(&1).unwrap().len(), 1);
-    }
-
-    #[test]
-    fn exports_adjusted_fitness() {
-        let first_fitness = 10.;
-        let second_fitness = 5.;
-        let third_fitness = 5.;
-
-        let configuration: Rc<RefCell<Configuration>> = Rc::new(RefCell::new(Configuration {
-            compatibility_threshold: 0.,
-            ..Default::default()
-        }));
-        let mut bank = GenomeBank::new(configuration);
-
-        let genome = Genome::new(1, 1);
-
-        bank.add_genome(genome.clone());
-        bank.add_genome(genome);
-
-        bank.add_genome(Genome::new(1, 1));
-
-        bank.mark_fitness(0, first_fitness);
-        bank.mark_fitness(1, second_fitness);
-
-        bank.mark_fitness(2, third_fitness);
-
-        bank.speciate();
-
-        let adjusted_fitnesses = bank.adjusted_fitnesses();
-
-        assert!(*adjusted_fitnesses.get(0).unwrap() < first_fitness);
-        assert!(*adjusted_fitnesses.get(1).unwrap() < second_fitness);
-        assert!((*adjusted_fitnesses.get(2).unwrap() - third_fitness).abs() < f64::EPSILON);
     }
 }

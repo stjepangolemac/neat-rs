@@ -3,9 +3,10 @@ use rayon::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::genome::{crossover, Genome};
+use crate::genome::{crossover, Genome, GenomeId};
 use crate::mutations::MutationKind;
 use crate::network::Network;
+use crate::speciation::SpeciesSet;
 pub use configuration::Configuration;
 use reporter::Reporter;
 use speciation::GenomeBank;
@@ -19,6 +20,7 @@ pub struct NEAT {
     outputs: usize,
     fitness_fn: fn(&mut Network) -> f64,
     pub genomes: GenomeBank,
+    species: SpeciesSet,
     configuration: Rc<RefCell<Configuration>>,
     reporter: Reporter,
 }
@@ -32,6 +34,7 @@ impl NEAT {
             outputs,
             fitness_fn,
             genomes: GenomeBank::new(configuration.clone()),
+            species: SpeciesSet::new(configuration.clone()),
             configuration,
             reporter: Reporter::new(),
         }
@@ -42,17 +45,39 @@ impl NEAT {
     }
 
     pub fn start(&mut self) -> (Network, f64) {
-        let initial_genomes = (0..self.configuration.borrow().population_size)
-            .map(|_| Genome::new(self.inputs, self.outputs))
-            .collect();
+        let (population_size, max_generations) = {
+            let config = self.configuration.borrow();
 
-        self.genomes.replace_genomes(initial_genomes);
+            (config.population_size, config.max_generations)
+        };
 
-        let max_generations = self.configuration.borrow().max_generations;
+        // Create initial genomes
+        (0..population_size).for_each(|_| {
+            self.genomes
+                .add_genome(Genome::new(self.inputs, self.outputs))
+        });
 
         for i in 1..=max_generations {
-            self.genomes.speciate();
             self.test_fitness();
+
+            let current_genome_ids: Vec<GenomeId> =
+                self.genomes.genomes().keys().cloned().collect();
+            let previous_and_current_genomes = self
+                .genomes
+                .genomes()
+                .iter()
+                .chain(self.genomes.previous_genomes())
+                .map(|(genome_id, genome)| (genome_id.clone(), genome.clone()))
+                .collect();
+
+            self.species.speciate(
+                i,
+                &current_genome_ids,
+                &previous_and_current_genomes,
+                self.genomes.fitnesses(),
+            );
+
+            self.genomes.speciate();
 
             let elitism = self.configuration.borrow().elitism;
             let population_size = self.configuration.borrow().population_size;
@@ -90,12 +115,12 @@ impl NEAT {
                         let parent_a = non_elites.get(parent_index_a).unwrap();
 
                         let parent_fitness_a =
-                            self.genomes.fitnesses().get(&parent_index_a).unwrap();
+                            self.genomes.fitnesses().get(&parent_a.id()).unwrap();
 
                         let parent_index_b = random::<usize>() % non_elites.len();
                         let parent_b = non_elites.get(parent_index_b).unwrap();
                         let parent_fitness_b =
-                            self.genomes.fitnesses().get(&parent_index_b).unwrap();
+                            self.genomes.fitnesses().get(&parent_b.id()).unwrap();
 
                         (*parent_a, *parent_fitness_a, *parent_b, *parent_fitness_b)
                     })
@@ -137,7 +162,11 @@ impl NEAT {
             new_genomes.append(&mut elites);
             new_genomes.append(&mut offspring);
 
-            self.genomes.replace_genomes(new_genomes);
+            self.genomes.clear();
+            new_genomes
+                .into_iter()
+                .for_each(|genome| self.genomes.add_genome(genome));
+
             self.test_fitness();
 
             self.reporter.report(i, &self);
@@ -162,8 +191,7 @@ impl NEAT {
     }
 
     fn genomes_by_adjusted_fitness(&self) -> Vec<(&Genome, f64)> {
-        let mut genomes: Vec<(usize, &Genome)> =
-            self.genomes.genomes().iter().enumerate().collect();
+        let mut genomes: Vec<(&u64, &Genome)> = self.genomes.genomes().iter().collect();
         let adjusted_fitnesses = self.genomes.adjusted_fitnesses();
 
         genomes.sort_by(|a, b| {
@@ -186,48 +214,50 @@ impl NEAT {
     }
 
     fn test_fitness(&mut self) {
-        let indexes_and_networks: Vec<(usize, Network)> = self
+        let ids_and_networks: Vec<(u64, Network)> = self
             .genomes
             .genomes()
             .iter()
-            .enumerate()
-            .map(|(index, genome)| (index, Network::from(genome)))
+            .map(|(genome_id, genome)| (*genome_id, Network::from(genome)))
             .collect();
 
         let node_cost = self.configuration.borrow().node_cost;
         let connection_cost = self.configuration.borrow().connection_cost;
         let fitness_fn = self.fitness_fn;
 
-        let indexes_and_fitnesses: Vec<(usize, f64)> = indexes_and_networks
+        let ids_and_fitnesses: Vec<(u64, f64)> = ids_and_networks
             .into_par_iter()
-            .map(|(index, mut network)| {
+            .map(|(genome_id, mut network)| {
                 let mut fitness: f64 = (fitness_fn)(&mut network);
                 fitness -= node_cost * network.nodes.len() as f64;
                 fitness -= connection_cost * network.connections.len() as f64;
 
-                (index, fitness)
+                (genome_id, fitness)
             })
             .collect();
 
-        indexes_and_fitnesses
+        ids_and_fitnesses
             .into_iter()
-            .for_each(|(index, fitness)| self.genomes.mark_fitness(index, fitness));
+            .for_each(|(genome_id, genome_fitness)| {
+                self.genomes.mark_fitness(genome_id, genome_fitness)
+            });
     }
 
-    pub fn get_best(&self) -> (usize, &Genome, f64) {
-        let (best_genome_index, best_fitness) = self.genomes.fitnesses().iter().fold(
+    pub fn get_best(&self) -> (GenomeId, &Genome, f64) {
+        let (best_genome_id, best_fitness) = self.genomes.fitnesses().iter().fold(
             (0, 0.),
-            |(best_index, best_fitness), (genome_index, genome_fitness)| {
+            |(best_id, best_fitness), (genome_id, genome_fitness)| {
                 if *genome_fitness > best_fitness {
-                    (*genome_index, *genome_fitness)
+                    (*genome_id, *genome_fitness)
                 } else {
-                    (best_index, best_fitness)
+                    (best_id, best_fitness)
                 }
             },
         );
-        let best_genome = self.genomes.genomes().get(best_genome_index).unwrap();
 
-        (best_genome_index, best_genome, best_fitness)
+        let best_genome = self.genomes.genomes().get(&best_genome_id).unwrap();
+
+        (best_genome_id, best_genome, best_fitness)
     }
 
     fn pick_mutation(&self) -> MutationKind {
@@ -284,8 +314,8 @@ mod tests {
         });
 
         system.set_configuration(Configuration {
-            population_size: 100,
-            max_generations: 50000,
+            population_size: 25,
+            max_generations: 3,
             mutation_rate: 0.75,
             fitness_goal: Some(0.95),
             node_cost: 0.,
@@ -294,8 +324,8 @@ mod tests {
             ..Default::default()
         });
         system.add_hook(1, |i, system| {
-            let (_, _, fitness) = system.get_best();
-            println!("Generation {}, best fitness is {}", i, fitness);
+            // let (_, _, fitness) = system.get_best();
+            // println!("Generation {}, best fitness is {}", i, fitness);
         });
 
         let (mut network, fitness) = system.start();
