@@ -20,7 +20,7 @@ pub struct NEAT {
     outputs: usize,
     fitness_fn: fn(&mut Network) -> f64,
     pub genomes: GenomeBank,
-    species: SpeciesSet,
+    species_set: SpeciesSet,
     configuration: Rc<RefCell<Configuration>>,
     reporter: Reporter,
 }
@@ -34,7 +34,7 @@ impl NEAT {
             outputs,
             fitness_fn,
             genomes: GenomeBank::new(configuration.clone()),
-            species: SpeciesSet::new(configuration.clone()),
+            species_set: SpeciesSet::new(configuration.clone()),
             configuration,
             reporter: Reporter::new(),
         }
@@ -57,9 +57,9 @@ impl NEAT {
                 .add_genome(Genome::new(self.inputs, self.outputs))
         });
 
-        for i in 1..=max_generations {
-            self.test_fitness();
+        self.test_fitness();
 
+        for i in 1..=max_generations {
             let current_genome_ids: Vec<GenomeId> =
                 self.genomes.genomes().keys().cloned().collect();
             let previous_and_current_genomes = self
@@ -70,100 +70,133 @@ impl NEAT {
                 .map(|(genome_id, genome)| (genome_id.clone(), genome.clone()))
                 .collect();
 
-            self.species.speciate(
+            self.species_set.speciate(
                 i,
                 &current_genome_ids,
                 &previous_and_current_genomes,
                 self.genomes.fitnesses(),
             );
 
-            self.genomes.speciate();
+            let (elitism, population_size, mutation_rate, survival_ratio) = {
+                let config = self.configuration.borrow();
 
-            let elitism = self.configuration.borrow().elitism;
-            let population_size = self.configuration.borrow().population_size;
-            let mutation_rate = self.configuration.borrow().mutation_rate;
-            let survival_ratio = self.configuration.borrow().survival_ratio;
+                (
+                    config.elitism,
+                    config.population_size,
+                    config.mutation_rate,
+                    config.survival_ratio,
+                )
+            };
 
-            let survived_count = (self.genomes.genomes().len()
-                * (survival_ratio * 100.).round() as usize)
-                .div_euclid(100);
+            let offspring: Vec<Genome> = self
+                .species_set
+                .species()
+                .values()
+                .flat_map(|species| {
+                    let offspring_count: usize = (species.adjusted_fitness.unwrap()
+                        * population_size as f64)
+                        .floor() as usize;
+                    let elites_count: usize = (offspring_count as f64 * elitism).floor() as usize;
+                    let nonelites_count: usize = offspring_count - elites_count;
 
-            let elites_count =
-                (self.genomes.genomes().len() * (elitism * 100.).round() as usize).div_euclid(100);
+                    let mut member_ids_and_fitnesses: Vec<(GenomeId, f64)> = species
+                        .members
+                        .iter()
+                        .map(|member_id| {
+                            (
+                                *member_id,
+                                *self.genomes.fitnesses().get(member_id).unwrap(),
+                            )
+                        })
+                        .collect();
 
-            let all_genomes: Vec<&Genome> = self
-                .genomes_by_adjusted_fitness()
-                .iter()
-                .take(survived_count)
-                .map(|(genome, _)| *genome)
-                .collect();
-            let mut elites: Vec<Genome> = all_genomes
-                .iter()
-                .take(elites_count)
-                .cloned()
-                .cloned()
-                .collect();
-            let non_elites = all_genomes;
+                    member_ids_and_fitnesses.sort_by(|a, b| {
+                        use std::cmp::Ordering::*;
 
-            let mut offspring = vec![];
+                        let fitness_a = a.1;
+                        let fitness_b = b.1;
 
-            while (elites.len() + offspring.len()) < population_size {
-                let crossover_data: Vec<(&Genome, f64, &Genome, f64)> = (0..population_size
-                    - (elites.len() + offspring.len()))
-                    .map(|_| {
-                        let parent_index_a = random::<usize>() % non_elites.len();
-                        let parent_a = non_elites.get(parent_index_a).unwrap();
-
-                        let parent_fitness_a =
-                            self.genomes.fitnesses().get(&parent_a.id()).unwrap();
-
-                        let parent_index_b = random::<usize>() % non_elites.len();
-                        let parent_b = non_elites.get(parent_index_b).unwrap();
-                        let parent_fitness_b =
-                            self.genomes.fitnesses().get(&parent_b.id()).unwrap();
-
-                        (*parent_a, *parent_fitness_a, *parent_b, *parent_fitness_b)
-                    })
-                    .collect();
-
-                let mut children: Vec<Genome> = crossover_data
-                    .par_iter()
-                    .map(|(parent_a, fitness_a, parent_b, fitness_b)| {
-                        crossover((parent_a, *fitness_a), (parent_b, *fitness_b))
-                    })
-                    .filter(|maybe_genome| maybe_genome.is_some())
-                    .map(|maybe_genome| maybe_genome.unwrap())
-                    .collect();
-
-                let mutations_for_children: Vec<Option<MutationKind>> = children
-                    .iter()
-                    .map(|_| {
-                        if random::<f64>() < mutation_rate {
-                            Some(self.pick_mutation())
+                        if fitness_a > fitness_b {
+                            Less
                         } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                children
-                    .par_iter_mut()
-                    .zip(mutations_for_children)
-                    .for_each(|(child, maybe_mutation)| {
-                        if let Some(mutation) = maybe_mutation {
-                            child.mutate(&mutation);
+                            Greater
                         }
                     });
 
-                offspring.append(&mut children);
-            }
+                    // Pick survivors
+                    let surviving_count: usize =
+                        (member_ids_and_fitnesses.len() as f64 * survival_ratio).floor() as usize;
+                    member_ids_and_fitnesses.truncate(surviving_count);
 
-            let mut new_genomes = vec![];
-            new_genomes.append(&mut elites);
-            new_genomes.append(&mut offspring);
+                    let elite_children: Vec<Genome> = (0..elites_count)
+                        .map(|elite_index| {
+                            let (elite_genome_id, _) =
+                                member_ids_and_fitnesses.get(elite_index).unwrap();
+                            let elite_genome = self.genomes.genomes().get(elite_genome_id).unwrap();
+
+                            elite_genome.clone()
+                        })
+                        .collect();
+
+                    let crossover_data: Vec<(&Genome, f64, &Genome, f64)> = (0..nonelites_count)
+                        .map(|_| {
+                            let parent_a_index = random::<usize>() % member_ids_and_fitnesses.len();
+                            let (parent_a_id, parent_a_fitness) =
+                                member_ids_and_fitnesses.get(parent_a_index).unwrap();
+                            let parent_a_genome = self.genomes.genomes().get(parent_a_id).unwrap();
+
+                            let parent_b_index = random::<usize>() % member_ids_and_fitnesses.len();
+                            let (parent_b_id, parent_b_fitness) =
+                                member_ids_and_fitnesses.get(parent_b_index).unwrap();
+                            let parent_b_genome = self.genomes.genomes().get(parent_b_id).unwrap();
+
+                            (
+                                parent_a_genome,
+                                *parent_a_fitness,
+                                parent_b_genome,
+                                *parent_b_fitness,
+                            )
+                        })
+                        .collect();
+
+                    let mut crossover_children: Vec<Genome> = crossover_data
+                        .par_iter()
+                        .map(|(parent_a, fitness_a, parent_b, fitness_b)| {
+                            crossover((parent_a, *fitness_a), (parent_b, *fitness_b))
+                        })
+                        .filter(|maybe_genome| maybe_genome.is_some())
+                        .map(|maybe_genome| maybe_genome.unwrap())
+                        .collect();
+
+                    let mutations_for_children: Vec<Option<MutationKind>> = crossover_children
+                        .iter()
+                        .map(|_| {
+                            if random::<f64>() < mutation_rate {
+                                Some(self.pick_mutation())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    crossover_children
+                        .par_iter_mut()
+                        .zip(mutations_for_children)
+                        .for_each(|(child, maybe_mutation)| {
+                            if let Some(mutation) = maybe_mutation {
+                                child.mutate(&mutation);
+                            }
+                        });
+
+                    elite_children
+                        .into_iter()
+                        .chain(crossover_children)
+                        .collect::<Vec<Genome>>()
+                })
+                .collect();
 
             self.genomes.clear();
-            new_genomes
+            offspring
                 .into_iter()
                 .for_each(|genome| self.genomes.add_genome(genome));
 
@@ -190,28 +223,28 @@ impl NEAT {
         (Network::from(best_genome), best_fitness)
     }
 
-    fn genomes_by_adjusted_fitness(&self) -> Vec<(&Genome, f64)> {
-        let mut genomes: Vec<(&u64, &Genome)> = self.genomes.genomes().iter().collect();
-        let adjusted_fitnesses = self.genomes.adjusted_fitnesses();
+    // fn genomes_by_adjusted_fitness(&self) -> Vec<(&Genome, f64)> {
+    //     let mut genomes: Vec<(&u64, &Genome)> = self.genomes.genomes().iter().collect();
+    //     let adjusted_fitnesses = self.genomes.adjusted_fitnesses();
 
-        genomes.sort_by(|a, b| {
-            let fitness_a = adjusted_fitnesses.get(a.0).unwrap();
-            let fitness_b = adjusted_fitnesses.get(b.0).unwrap();
+    //     genomes.sort_by(|a, b| {
+    //         let fitness_a = adjusted_fitnesses.get(a.0).unwrap();
+    //         let fitness_b = adjusted_fitnesses.get(b.0).unwrap();
 
-            if (fitness_a - fitness_b).abs() < f64::EPSILON {
-                std::cmp::Ordering::Equal
-            } else if fitness_a > fitness_b {
-                std::cmp::Ordering::Less
-            } else {
-                std::cmp::Ordering::Greater
-            }
-        });
+    //         if (fitness_a - fitness_b).abs() < f64::EPSILON {
+    //             std::cmp::Ordering::Equal
+    //         } else if fitness_a > fitness_b {
+    //             std::cmp::Ordering::Less
+    //         } else {
+    //             std::cmp::Ordering::Greater
+    //         }
+    //     });
 
-        genomes
-            .into_iter()
-            .map(|(index, genome)| (genome, *adjusted_fitnesses.get(index).unwrap()))
-            .collect()
-    }
+    //     genomes
+    //         .into_iter()
+    //         .map(|(index, genome)| (genome, *adjusted_fitnesses.get(index).unwrap()))
+    //         .collect()
+    // }
 
     fn test_fitness(&mut self) {
         let ids_and_networks: Vec<(u64, Network)> = self
@@ -314,8 +347,8 @@ mod tests {
         });
 
         system.set_configuration(Configuration {
-            population_size: 25,
-            max_generations: 3,
+            population_size: 150,
+            max_generations: 1000,
             mutation_rate: 0.75,
             fitness_goal: Some(0.95),
             node_cost: 0.,
@@ -324,8 +357,8 @@ mod tests {
             ..Default::default()
         });
         system.add_hook(1, |i, system| {
-            // let (_, _, fitness) = system.get_best();
-            // println!("Generation {}, best fitness is {}", i, fitness);
+            let (_, _, fitness) = system.get_best();
+            println!("Generation {}, best fitness is {}", i, fitness);
         });
 
         let (mut network, fitness) = system.start();

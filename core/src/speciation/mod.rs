@@ -25,6 +25,10 @@ impl SpeciesSet {
         }
     }
 
+    pub fn species(&self) -> &HashMap<usize, Species> {
+        &self.species
+    }
+
     pub fn speciate(
         &mut self,
         generation: usize,
@@ -185,10 +189,10 @@ pub struct Species {
 
     last_improved: usize,
     representative: GenomeId,
-    members: Vec<GenomeId>,
+    pub members: Vec<GenomeId>,
 
     fitness: Option<f64>,
-    adjusted_fitness: Option<f64>,
+    pub adjusted_fitness: Option<f64>,
     fitness_history: Vec<f64>,
 }
 
@@ -203,10 +207,6 @@ impl Species {
             adjusted_fitness: None,
             fitness_history: vec![],
         }
-    }
-
-    pub fn is_complete(&self) -> bool {
-        self.fitness.is_some() && self.adjusted_fitness.is_some()
     }
 }
 
