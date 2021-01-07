@@ -25,7 +25,10 @@ impl GenomicDistanceCache {
         if let Some(distance) = self.cache.get(&distance_key) {
             *distance
         } else {
-            0.
+            let distance = self.distance(a, b);
+            self.cache.insert(distance_key, distance);
+
+            distance
         }
     }
 
@@ -143,6 +146,10 @@ impl GenomicDistanceCache {
         distance += (connections_difference_factor + disjoint_factor) / max_connection_genes as f64;
 
         distance
+    }
+
+    pub fn mean(&self) -> f64 {
+        self.cache.values().sum::<f64>() / self.cache.len() as f64
     }
 
     fn make_key<'o>(a: &'o Genome, b: &'o Genome) -> String {

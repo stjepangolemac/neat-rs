@@ -36,7 +36,16 @@ impl SpeciesSet {
         all_genomes: &HashMap<GenomeId, Genome>,
         fitnesses: &HashMap<GenomeId, f64>,
     ) {
-        let compatibility_threshold = self.configuration.borrow().compatibility_threshold;
+        let (compatibility_threshold, stagnation_after, elitism_species) = {
+            let config = self.configuration.borrow();
+
+            (
+                config.compatibility_threshold,
+                config.stagnation_after,
+                config.elitism_species,
+            )
+        };
+
         let mut distances = GenomicDistanceCache::new(self.configuration.clone());
 
         let mut unspeciated_genomes: HashSet<GenomeId> = current_genomes.iter().cloned().collect();
@@ -159,24 +168,39 @@ impl SpeciesSet {
             .iter()
             .map(|(_, species)| species.fitness.unwrap())
             .collect();
-        let min_species_fitness = species_fitnesses.iter().cloned().fold(f64::MAX, f64::min);
-        let max_species_fitness = species_fitnesses.iter().cloned().fold(f64::MIN, f64::max);
 
         new_species.iter_mut().for_each(|(_, mut species)| {
-            // Prevents division by zero
-            let addition = 1.;
+            let own_exp = species.fitness.unwrap().exp();
+            let exp_sum: f64 = species_fitnesses.iter().map(|fitness| fitness.exp()).sum();
 
-            let moved_min = min_species_fitness + addition;
-            let moved_max = max_species_fitness + addition;
-            let moved_fitness = species.fitness.unwrap() + addition;
-
-            let mut adjusted_fitness = (moved_fitness - moved_min) / (moved_max - moved_min);
-            if adjusted_fitness.is_nan() {
-                adjusted_fitness = 1.;
-            }
+            let adjusted_fitness = own_exp / exp_sum;
 
             species.adjusted_fitness = Some(adjusted_fitness);
         });
+
+        // Remove stagnated species
+        let mut stagnated_ids_and_adjusted_fitnesses: Vec<(usize, f64)> = new_species
+            .iter()
+            .filter(|(_, species)| generation - species.last_improved >= stagnation_after)
+            .map(|(id, species)| (*id, species.adjusted_fitness.unwrap()))
+            .collect();
+
+        stagnated_ids_and_adjusted_fitnesses.sort_by(|a, b| {
+            use std::cmp::Ordering::*;
+
+            if a.1 > b.1 {
+                Less
+            } else {
+                Greater
+            }
+        });
+
+        stagnated_ids_and_adjusted_fitnesses
+            .iter()
+            .take(usize::max(new_species.len() - elitism_species, 0))
+            .for_each(|(id, _)| {
+                new_species.remove(id).unwrap();
+            });
 
         // Finally replace old species
         self.species = new_species;

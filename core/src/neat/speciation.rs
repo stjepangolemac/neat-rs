@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::configuration::Configuration;
-use crate::genome::ConnectionGene;
 use crate::genome::{Genome, GenomeId};
 
 /// Holds all genomes and species, does the process of speciation
@@ -56,13 +55,6 @@ impl GenomeBank {
     pub fn fitnesses(&self) -> &HashMap<GenomeId, f64> {
         &self.fitnesses
     }
-
-    /// Checks that all genomes have had their fitness measured
-    fn all_genomes_tested(&self) -> bool {
-        self.genomes
-            .iter()
-            .all(|(genome_id, _)| self.fitnesses.get(genome_id).is_some())
-    }
 }
 
 #[cfg(test)]
@@ -87,23 +79,5 @@ mod tests {
         bank.add_genome(genome.clone());
 
         bank.mark_fitness(genome.id(), 1337.);
-    }
-
-    #[test]
-    fn checks_all_have_fitness_measured() {
-        let configuration: Rc<RefCell<Configuration>> = Default::default();
-        let mut bank = GenomeBank::new(configuration);
-
-        let genome_first = Genome::new(1, 1);
-        let genome_second = Genome::new(1, 1);
-
-        bank.add_genome(genome_first.clone());
-        bank.add_genome(genome_second.clone());
-
-        bank.mark_fitness(genome_first.id(), 1337.);
-        assert!(!bank.all_genomes_tested());
-
-        bank.mark_fitness(genome_second.id(), 1338.);
-        assert!(bank.all_genomes_tested());
     }
 }

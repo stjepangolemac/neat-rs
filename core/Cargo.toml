@@ -9,6 +9,7 @@ rand = "0.7.3"
 rand_distr = "0.3.0"
 rayon = "1.5.0"
 serde = { version = "1.0.118", features=["derive"], optional = true }
+uuid = { version = "0.8.1", features = ["v4"] }
 
 [features]
 network-serde = ["serde"]

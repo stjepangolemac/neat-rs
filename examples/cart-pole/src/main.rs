@@ -36,30 +36,32 @@ fn train() {
     });
 
     system.set_configuration(Configuration {
-        population_size: 50,
-        max_generations: 100,
+        population_size: 100,
+        max_generations: 500,
+        stagnation_after: 50,
         node_cost: 1.,
         connection_cost: 1.,
-        compatibility_threshold: 1.5,
+        compatibility_threshold: 2.,
         ..Default::default()
     });
 
-    system.add_hook(1, |generation, system| {
+    system.add_hook(10, |generation, system| {
         println!(
-            "Generation {}, best fitness is {}",
+            "Generation {}, best fitness is {}, {} species alive",
             generation,
-            system.get_best().2
+            system.get_best().2,
+            system.species_set.species().len()
         );
     });
 
     let (network, fitness) = system.start();
 
-    println!(
-        "Found network with {} nodes and {} connections, fitness is {}",
-        network.nodes.len(),
-        network.connections.len(),
-        fitness
-    );
+    // println!(
+    //     "Found network with {} nodes and {} connections, fitness is {}",
+    //     network.nodes.len(),
+    //     network.connections.len(),
+    //     fitness
+    // );
 
     to_file("network.bin", &network);
 }

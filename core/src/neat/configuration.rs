@@ -14,6 +14,12 @@ pub struct Configuration {
     /// The ratio of champion individuals that are copied to the next generation
     pub elitism: f64,
 
+    /// The minimum amount of species that need to exist after the removal of stagnated ones
+    pub elitism_species: usize,
+
+    /// How many generations of not making progress is considered stagnation
+    pub stagnation_after: usize,
+
     /// The fitness cost of every node in the gene
     pub node_cost: f64,
 
@@ -55,10 +61,12 @@ impl Default for Configuration {
             max_generations: 1000,
             population_size: 150,
             elitism: 0.1,
+            elitism_species: 3,
+            stagnation_after: 50,
             node_cost: 0.,
             connection_cost: 0.,
             mutation_rate: 0.5,
-            survival_ratio: 0.25,
+            survival_ratio: 0.5,
             mutation_kinds: default_mutation_kinds(),
             fitness_goal: None,
             distance_connection_disjoint_coefficient: 1.,

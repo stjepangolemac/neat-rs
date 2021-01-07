@@ -2,6 +2,7 @@ use rand::random;
 use rayon::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
+use uuid::Uuid;
 
 use crate::genome::{crossover, Genome, GenomeId};
 use crate::mutations::MutationKind;
@@ -20,7 +21,7 @@ pub struct NEAT {
     outputs: usize,
     fitness_fn: fn(&mut Network) -> f64,
     pub genomes: GenomeBank,
-    species_set: SpeciesSet,
+    pub species_set: SpeciesSet,
     configuration: Rc<RefCell<Configuration>>,
     reporter: Reporter,
 }
@@ -95,8 +96,8 @@ impl NEAT {
                 .flat_map(|species| {
                     let offspring_count: usize = (species.adjusted_fitness.unwrap()
                         * population_size as f64)
-                        .floor() as usize;
-                    let elites_count: usize = (offspring_count as f64 * elitism).floor() as usize;
+                        .ceil() as usize;
+                    let elites_count: usize = (offspring_count as f64 * elitism).ceil() as usize;
                     let nonelites_count: usize = offspring_count - elites_count;
 
                     let mut member_ids_and_fitnesses: Vec<(GenomeId, f64)> = species
@@ -125,29 +126,32 @@ impl NEAT {
 
                     // Pick survivors
                     let surviving_count: usize =
-                        (member_ids_and_fitnesses.len() as f64 * survival_ratio).floor() as usize;
+                        (member_ids_and_fitnesses.len() as f64 * survival_ratio).ceil() as usize;
                     member_ids_and_fitnesses.truncate(surviving_count);
 
-                    let elite_children: Vec<Genome> = (0..elites_count)
-                        .map(|elite_index| {
-                            let (elite_genome_id, _) =
-                                member_ids_and_fitnesses.get(elite_index).unwrap();
-                            let elite_genome = self.genomes.genomes().get(elite_genome_id).unwrap();
+                    let elite_children: Vec<Genome> =
+                        (0..usize::min(elites_count, member_ids_and_fitnesses.len()))
+                            .map(|elite_index| {
+                                let (elite_genome_id, _) =
+                                    member_ids_and_fitnesses.get(elite_index).unwrap();
+                                let elite_genome =
+                                    self.genomes.genomes().get(elite_genome_id).unwrap();
 
-                            elite_genome.clone()
-                        })
-                        .collect();
+                                elite_genome.clone()
+                            })
+                            .collect();
 
                     let crossover_data: Vec<(&Genome, f64, &Genome, f64)> = (0..nonelites_count)
                         .map(|_| {
                             let parent_a_index = random::<usize>() % member_ids_and_fitnesses.len();
+                            let parent_b_index = random::<usize>() % member_ids_and_fitnesses.len();
+
                             let (parent_a_id, parent_a_fitness) =
                                 member_ids_and_fitnesses.get(parent_a_index).unwrap();
-                            let parent_a_genome = self.genomes.genomes().get(parent_a_id).unwrap();
-
-                            let parent_b_index = random::<usize>() % member_ids_and_fitnesses.len();
                             let (parent_b_id, parent_b_fitness) =
                                 member_ids_and_fitnesses.get(parent_b_index).unwrap();
+
+                            let parent_a_genome = self.genomes.genomes().get(parent_a_id).unwrap();
                             let parent_b_genome = self.genomes.genomes().get(parent_b_id).unwrap();
 
                             (
@@ -223,31 +227,8 @@ impl NEAT {
         (Network::from(best_genome), best_fitness)
     }
 
-    // fn genomes_by_adjusted_fitness(&self) -> Vec<(&Genome, f64)> {
-    //     let mut genomes: Vec<(&u64, &Genome)> = self.genomes.genomes().iter().collect();
-    //     let adjusted_fitnesses = self.genomes.adjusted_fitnesses();
-
-    //     genomes.sort_by(|a, b| {
-    //         let fitness_a = adjusted_fitnesses.get(a.0).unwrap();
-    //         let fitness_b = adjusted_fitnesses.get(b.0).unwrap();
-
-    //         if (fitness_a - fitness_b).abs() < f64::EPSILON {
-    //             std::cmp::Ordering::Equal
-    //         } else if fitness_a > fitness_b {
-    //             std::cmp::Ordering::Less
-    //         } else {
-    //             std::cmp::Ordering::Greater
-    //         }
-    //     });
-
-    //     genomes
-    //         .into_iter()
-    //         .map(|(index, genome)| (genome, *adjusted_fitnesses.get(index).unwrap()))
-    //         .collect()
-    // }
-
     fn test_fitness(&mut self) {
-        let ids_and_networks: Vec<(u64, Network)> = self
+        let ids_and_networks: Vec<(GenomeId, Network)> = self
             .genomes
             .genomes()
             .iter()
@@ -258,7 +239,7 @@ impl NEAT {
         let connection_cost = self.configuration.borrow().connection_cost;
         let fitness_fn = self.fitness_fn;
 
-        let ids_and_fitnesses: Vec<(u64, f64)> = ids_and_networks
+        let ids_and_fitnesses: Vec<(GenomeId, f64)> = ids_and_networks
             .into_par_iter()
             .map(|(genome_id, mut network)| {
                 let mut fitness: f64 = (fitness_fn)(&mut network);
@@ -278,7 +259,7 @@ impl NEAT {
 
     pub fn get_best(&self) -> (GenomeId, &Genome, f64) {
         let (best_genome_id, best_fitness) = self.genomes.fitnesses().iter().fold(
-            (0, 0.),
+            (Uuid::new_v4(), f64::MIN),
             |(best_id, best_fitness), (genome_id, genome_fitness)| {
                 if *genome_fitness > best_fitness {
                     (*genome_id, *genome_fitness)
@@ -348,11 +329,11 @@ mod tests {
 
         system.set_configuration(Configuration {
             population_size: 150,
-            max_generations: 1000,
+            max_generations: 100,
             mutation_rate: 0.75,
-            fitness_goal: Some(0.95),
-            node_cost: 0.,
-            connection_cost: 0.,
+            fitness_goal: Some(0.9099),
+            node_cost: 0.01,
+            connection_cost: 0.01,
             compatibility_threshold: 3.,
             ..Default::default()
         });
@@ -363,13 +344,13 @@ mod tests {
 
         let (mut network, fitness) = system.start();
 
-        // let inputs: Vec<Vec<f64>> = vec![vec![0., 0.], vec![0., 1.], vec![1., 0.], vec![1., 1.]];
-        // for i in inputs {
-        //     let o = network.forward_pass(i.clone());
-        //     dbg!(i, o);
-        // }
+        let inputs: Vec<Vec<f64>> = vec![vec![0., 0.], vec![0., 1.], vec![1., 0.], vec![1., 1.]];
+        for i in inputs {
+            let o = network.forward_pass(i.clone());
+            dbg!(i, o);
+        }
 
-        // dbg!(&network, &fitness);
+        dbg!(&network, &fitness);
 
         println!(
             "Found network with {} nodes and {} connections, of fitness {}",
