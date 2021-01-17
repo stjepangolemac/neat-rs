@@ -24,7 +24,7 @@ fn model(app: &App) -> Model {
 
     Model {
         network: None,
-        env: CartPole::new(),
+        env: CartPole::new_single(),
     }
 }
 
@@ -47,7 +47,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
     let cart_x = 0. + x as f32 * 100.;
     let cart_width = 20.;
     let cart_height = 10.;
-    let pole_height = length_pole as f32 * 100. * 2.;
+    let pole_height = length_pole as f32 * 100.;
     let pole_rotational_dx = theta.sin() as f32 * pole_height / 2.;
     let pole_rotational_dy = theta.cos() as f32 * pole_height / 2.;
 

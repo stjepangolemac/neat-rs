@@ -9,7 +9,9 @@ pub struct CartPoleConfiguration {
     pub gravity: f64,
     pub mass_cart: f64,
     pub mass_pole: f64,
+    pub mass_pole2: f64,
     pub length_pole: f64,
+    pub length_pole2: f64,
     pub time_step: f64,
 
     pub limit_position: f64,
@@ -22,7 +24,9 @@ impl Default for CartPoleConfiguration {
             gravity: 9.8,
             mass_cart: 1.0,
             mass_pole: 0.1,
-            length_pole: 0.5,
+            mass_pole2: 0.02,
+            length_pole: 1.,
+            length_pole2: 0.2,
             time_step: 1. / 60.,
 
             limit_position: 2.4,
@@ -36,18 +40,24 @@ pub struct CartPole {
 
     x: f64,
     theta: f64,
+    theta2: f64,
+
     dx: f64,
     dtheta: f64,
-    t: f64,
+    dtheta2: f64,
+
     xacc: f64,
     tacc: f64,
+    tacc2: f64,
+
     fitness: f64,
+    t: f64,
 
     finished: bool,
 }
 
 impl CartPole {
-    pub fn new() -> Self {
+    pub fn new_single() -> Self {
         let configuration: CartPoleConfiguration = Default::default();
         let mut rng = thread_rng();
 
@@ -64,11 +74,17 @@ impl CartPole {
 
             x,
             theta,
+            theta2: 0.,
+
             dx,
             dtheta,
-            t: 0.,
+            dtheta2: 0.,
+
             xacc: 0.,
             tacc: 0.,
+            tacc2: 0.,
+
+            t: 0.,
             fitness: 0.,
 
             finished: false,
@@ -124,42 +140,7 @@ impl Environment for CartPole {
             return Err(());
         }
 
-        let force = CartPole::continuous_actuator_force(input);
-        let xacc_current = self.xacc;
-        let tacc_current = self.tacc;
-        let mass_all = self.configuration.mass_pole + self.configuration.mass_cart;
-
-        self.x += self.configuration.time_step * self.dx
-            + 0.5 * xacc_current * self.configuration.time_step.powi(2);
-        self.theta += self.configuration.time_step * self.dtheta
-            + 0.5 * tacc_current * self.configuration.time_step.powi(2);
-
-        let theta_sin = self.theta.sin();
-        let theta_cos = self.theta.cos();
-
-        self.tacc = (self.configuration.gravity * theta_sin
-            + theta_cos
-                * (-force
-                    - self.configuration.mass_pole
-                        * self.configuration.length_pole
-                        * self.dtheta.powi(2)
-                        * theta_sin)
-                / mass_all)
-            / (self.configuration.length_pole
-                * (4. / 3. - self.configuration.mass_pole * theta_cos.powi(2) / mass_all));
-        self.xacc = (force
-            + self.configuration.mass_pole
-                * self.configuration.length_pole
-                * (self.dtheta.powi(2) * theta_sin - self.tacc * theta_cos))
-            / mass_all;
-
-        self.dx += 0.5 * (xacc_current + self.xacc) * self.configuration.time_step;
-        self.dtheta += 0.5 * (tacc_current + self.tacc) * self.configuration.time_step;
-
-        self.t += self.configuration.time_step;
-
-        self.measure_fitness();
-        self.check_finished();
+        utils::step_single_pole(self, input);
 
         Ok(())
     }
@@ -173,7 +154,7 @@ impl Environment for CartPole {
     }
 
     fn reset(&mut self) {
-        *self = CartPole::new();
+        *self = CartPole::new_single();
     }
 
     fn render(&self) {
@@ -187,7 +168,7 @@ mod tests {
 
     #[test]
     fn misc() {
-        let mut env = CartPole::new();
+        let mut env = CartPole::new_single();
 
         for _ in 0..5 {
             env.step(1.).unwrap();

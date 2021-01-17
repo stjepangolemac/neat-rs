@@ -8,7 +8,7 @@ fn train() {
     let mut system = NEAT::new(4, 1, |network| {
         let num_simulations = 10;
         let max_steps = 1000;
-        let mut env = CartPole::new();
+        let mut env = CartPole::new_single();
 
         let mut steps_done = 0;
         let mut fitness = 0.;
