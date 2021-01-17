@@ -7,6 +7,12 @@ A neuroevolution framework written in rust.
 Here is how to train a cart pole balancing neural network, available in the
 `examples/` dir.
 
+The `system` only has 3 parameters:
+
+- Number of input neurons
+- Number of output neurons
+- The fitness function that returns a `f64`
+
 ```rust
 let mut system = NEAT::new(4, 1, |network| {
     let num_simulations = 10;
